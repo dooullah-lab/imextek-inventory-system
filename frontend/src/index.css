@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: #F7F9FA;
+  font-family: 'Inter', sans-serif;
+  color: #01283A;
+}
+
+::selection {
+  background-color: #FF8C42;
+  color: white;
+}
+
+/* Subtle focus ring for accessibility */
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid #FF8C42;
+  outline-offset: 2px;
+}
