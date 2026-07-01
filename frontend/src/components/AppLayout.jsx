@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import logo from "../assets/logo.png";
 import {
   LayoutDashboard, LayoutGrid, BarChart3, History,
-  LogOut, Menu, X, ShieldCheck, Tag, UserCircle,
+  LogOut, Menu, X, ShieldCheck, Tag, UserCircle, Receipt,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -12,6 +12,7 @@ const baseNavItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/inventory", label: "Inventory", icon: LayoutGrid },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
+  { to: "/expenses", label: "Expenses", icon: Receipt },
   { to: "/activity", label: "Activity Log", icon: History },
   { to: "/categories", label: "Categories", icon: Tag },
 ];
@@ -64,12 +65,22 @@ export default function AppLayout() {
             "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors mb-1 " +
             (isActive ? "bg-brand-500 text-white" : "text-brand-600 hover:bg-brand-50")
           }>
-          <UserCircle size={17} />
+          {user?.avatar ? (
+            <img src={user.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+          ) : (
+            <UserCircle size={17} />
+          )}
           My Profile
         </NavLink>
-        <div className="px-3 py-1.5 mb-1">
-          <p className="text-sm font-medium text-brand-700 truncate">{user?.name || user?.email}</p>
-          <p className="text-xs text-brand-300 capitalize">{user?.role}</p>
+        <div className="flex items-center gap-2.5 px-3 py-1.5 mb-1">
+          {user?.avatar
+            ? <img src={user.avatar} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+            : <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center shrink-0"><UserCircle size={16} className="text-brand-400" /></div>
+          }
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-brand-700 truncate">{user?.name || user?.email}</p>
+            <p className="text-xs text-brand-300 capitalize">{user?.role}</p>
+          </div>
         </div>
         <button onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium

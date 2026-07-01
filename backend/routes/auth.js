@@ -251,4 +251,24 @@ router.post("/reset-password", async (req, res) => {
   }
 });
 
+// PATCH /auth/profile/picture - save base64 avatar
+router.patch("/profile/picture", requireAuth, async (req, res) => {
+  try {
+    const { avatar } = req.body;
+    if (!avatar) return res.status(400).json({ error: "No image data provided." });
+    if (avatar.length > 200000)
+      return res.status(400).json({ error: "Image too large. Please use a smaller photo." });
+
+    await ddbDocClient.send(new UpdateCommand({
+      TableName: TABLES.USERS,
+      Key: { userId: req.user.userId },
+      UpdateExpression: "SET avatar = :a",
+      ExpressionAttributeValues: { ":a": avatar },
+    }));
+    res.json({ message: "Profile picture updated.", avatar });
+  } catch (err) {
+    console.error("Avatar update error:", err);
+    res.status(500).json({ error: "Could not update profile picture." });
+  }
+});
 module.exports = router;

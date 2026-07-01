@@ -22,6 +22,7 @@ const TABLES = {
   PRODUCTS: process.env.PRODUCTS_TABLE || "ImExTek_Products",
   TRANSACTIONS: process.env.TRANSACTIONS_TABLE || "ImExTek_Transactions",
   CATEGORIES: process.env.CATEGORIES_TABLE || "ImExTek_Categories",
+  EXPENSES: process.env.EXPENSES_TABLE || "ImExTek_Expenses",
 };
 
 module.exports = { ddbDocClient, TABLES };

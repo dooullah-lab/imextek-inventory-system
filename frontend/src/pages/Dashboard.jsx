@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import {
   TrendingUp, Package, ShoppingCart, AlertTriangle,
   ArrowDownCircle, ArrowUpCircle, Loader2, ArrowRight,
+  TrendingDown, DollarSign,
 } from "lucide-react";
 
 const formatNaira = (n) =>
@@ -73,11 +74,19 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
             <StatCard icon={TrendingUp} label="Today's Revenue" value={formatNaira(summary?.totalRevenue)} accent="bg-brand-500" sub="From sales today" />
             <StatCard icon={ShoppingCart} label="Units Sold Today" value={summary?.unitsSold || 0} accent="bg-copper-500" />
             <StatCard icon={Package} label="Units Restocked" value={summary?.unitsRestocked || 0} accent="bg-brand-400" sub="Today" />
-            <StatCard icon={AlertTriangle} label="Low Stock Items" value={lowStock.length} accent={lowStock.length > 0 ? "bg-red-500" : "bg-green-500"} sub={lowStock.length === 0 ? "All good" : "Needs attention"} />
+            <StatCard icon={TrendingDown} label="Today's Expenses" value={formatNaira(summary?.totalExpenses)} accent="bg-red-500" />
+            <StatCard
+              icon={DollarSign}
+              label="Net Profit Today"
+              value={formatNaira(summary?.netProfit)}
+              accent={(summary?.netProfit || 0) >= 0 ? "bg-green-500" : "bg-red-500"}
+              sub={(summary?.netProfit || 0) >= 0 ? "Profitable" : "Running at a loss"}
+            />
+            <StatCard icon={AlertTriangle} label="Low Stock Items" value={lowStock.length} accent={lowStock.length > 0 ? "bg-orange-400" : "bg-green-500"} sub={lowStock.length === 0 ? "All good" : "Needs attention"} />
           </div>
 
           <div className="grid lg:grid-cols-3 gap-4">

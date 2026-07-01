@@ -13,6 +13,7 @@ import ActivityLog from "./pages/ActivityLog";
 import Users from "./pages/Users";
 import Profile from "./pages/Profile";
 import Categories from "./pages/Categories";
+import Expenses from "./pages/Expenses";
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ export default function App() {
             <Route path="analytics" element={<Analytics />} />
             <Route path="activity" element={<ActivityLog />} />
             <Route path="categories" element={<Categories />} />
+            <Route path="expenses" element={<Expenses />} />
             <Route path="users" element={<Users />} />
             <Route path="profile" element={<Profile />} />
           </Route>

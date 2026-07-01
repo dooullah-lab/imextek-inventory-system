@@ -6,60 +6,76 @@ const { requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
-// Works out the start/end window for a given range, OR a fully custom range
-// if "from" and "to" query params are supplied.
 function resolveRange(range, from, to) {
   const now = new Date();
 
   if (range === "custom" && from && to) {
     const start = new Date(from);
     const end = new Date(to);
-    end.setHours(23, 59, 59, 999);
+    end.setUTCHours(23, 59, 59, 999);
     return { start, end };
   }
 
   let start;
+  const end = new Date(now);
+
   switch (range) {
     case "today":
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      // Midnight UTC today
+      start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
       break;
-    case "week": {
-      const d = new Date(now);
-      d.setDate(d.getDate() - 7);
-      start = d;
-      break;
-    }
-    case "year":
-      start = new Date(now.getFullYear(), 0, 1);
+    case "week":
+      start = new Date(now);
+      start.setDate(start.getDate() - 7);
       break;
     case "month":
+      // Last 30 days — matches the "7 days" pattern so results are never empty by accident
+      start = new Date(now);
+      start.setDate(start.getDate() - 30);
+      break;
+    case "year":
+      start = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+      break;
     default:
-      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      start = new Date(now);
+      start.setDate(start.getDate() - 30);
   }
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
+
   return { start, end };
 }
 
-// GET /analytics/summary?range=today|week|month|year|custom&from=&to=&group=day|month
+// GET /analytics/summary
 router.get("/summary", requireAuth, async (req, res) => {
   try {
     const { range = "month", from, to, group } = req.query;
     const { start, end } = resolveRange(range, from, to);
 
-    const result = await ddbDocClient.send(new ScanCommand({ TableName: TABLES.TRANSACTIONS }));
-    const all = result.Items || [];
+    const [txResult, expResult] = await Promise.all([
+      ddbDocClient.send(new ScanCommand({ TableName: TABLES.TRANSACTIONS })),
+      ddbDocClient.send(new ScanCommand({ TableName: TABLES.EXPENSES })),
+    ]);
 
-    const inRange = all.filter((t) => {
+    const allTx = txResult.Items || [];
+    const allExp = expResult.Items || [];
+
+    const inRange = allTx.filter((t) => {
       const ts = new Date(t.timestamp);
       return ts >= start && ts <= end;
     });
+
+    const expInRange = allExp.filter((e) => {
+      const ts = new Date(e.timestamp);
+      return ts >= start && ts <= end;
+    });
+
     const sales = inRange.filter((t) => t.type === "sale");
     const restocks = inRange.filter((t) => t.type === "restock");
 
     const totalRevenue = sales.reduce((sum, t) => sum + (t.total || 0), 0);
     const unitsSold = sales.reduce((sum, t) => sum + t.quantity, 0);
     const unitsRestocked = restocks.reduce((sum, t) => sum + t.quantity, 0);
+    const totalExpenses = expInRange.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const netProfit = totalRevenue - totalExpenses;
 
     // Top products by revenue
     const byProduct = {};
@@ -72,29 +88,41 @@ router.get("/summary", requireAuth, async (req, res) => {
     });
     const topProducts = Object.values(byProduct).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
 
-    // Decide whether to group the chart by day or by month.
-    // Auto-decides: if the range spans more than 60 days, group by month automatically.
+    // Expenses by category
+    const expByCategory = {};
+    expInRange.forEach((e) => {
+      const cat = e.category || "Other";
+      expByCategory[cat] = (expByCategory[cat] || 0) + (e.amount || 0);
+    });
+    const expensesByCategory = Object.entries(expByCategory)
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    // Auto-group by day or month
     const spanDays = (end - start) / (1000 * 60 * 60 * 24);
     const groupBy = group || (spanDays > 60 ? "month" : "day");
 
-    const bucketMap = {};
+    const revMap = {};
+    const expMap = {};
     sales.forEach((t) => {
-      const key = groupBy === "month" ? t.timestamp.slice(0, 7) : t.timestamp.slice(0, 10); // YYYY-MM or YYYY-MM-DD
-      bucketMap[key] = (bucketMap[key] || 0) + (t.total || 0);
+      const key = groupBy === "month" ? t.timestamp.slice(0, 7) : t.timestamp.slice(0, 10);
+      revMap[key] = (revMap[key] || 0) + (t.total || 0);
     });
-    const dailyBreakdown = Object.entries(bucketMap)
-      .map(([date, revenue]) => ({ date, revenue }))
+    expInRange.forEach((e) => {
+      const key = groupBy === "month" ? e.timestamp.slice(0, 7) : e.timestamp.slice(0, 10);
+      expMap[key] = (expMap[key] || 0) + (e.amount || 0);
+    });
+
+    // Merge revenue and expense timelines
+    const allKeys = new Set([...Object.keys(revMap), ...Object.keys(expMap)]);
+    const dailyBreakdown = Array.from(allKeys)
+      .map((date) => ({ date, revenue: revMap[date] || 0, expenses: expMap[date] || 0 }))
       .sort((a, b) => (a.date > b.date ? 1 : -1));
 
     res.json({
-      range,
-      groupBy,
-      totalRevenue,
-      unitsSold,
-      unitsRestocked,
-      transactionCount: inRange.length,
-      topProducts,
-      dailyBreakdown,
+      range, groupBy, totalRevenue, unitsSold, unitsRestocked,
+      totalExpenses, netProfit, transactionCount: inRange.length,
+      topProducts, expensesByCategory, dailyBreakdown,
     });
   } catch (err) {
     console.error("Analytics summary error:", err);
@@ -102,8 +130,7 @@ router.get("/summary", requireAuth, async (req, res) => {
   }
 });
 
-// GET /analytics/details?type=revenue|unitsSold|unitsRestocked|lowStock&range=&from=&to=
-// Powers the "click a stat card to see what's behind the number" drill-down.
+// GET /analytics/details
 router.get("/details", requireAuth, async (req, res) => {
   try {
     const { type, range = "month", from, to } = req.query;
@@ -114,13 +141,19 @@ router.get("/details", requireAuth, async (req, res) => {
       return res.json({ type, items: lowStock });
     }
 
+    if (type === "expenses") {
+      const { start, end } = resolveRange(range, from, to);
+      const result = await ddbDocClient.send(new ScanCommand({ TableName: TABLES.EXPENSES }));
+      const items = (result.Items || [])
+        .filter((e) => { const ts = new Date(e.timestamp); return ts >= start && ts <= end; })
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      return res.json({ type, items });
+    }
+
     const { start, end } = resolveRange(range, from, to);
     const result = await ddbDocClient.send(new ScanCommand({ TableName: TABLES.TRANSACTIONS }));
     const all = result.Items || [];
-    const inRange = all.filter((t) => {
-      const ts = new Date(t.timestamp);
-      return ts >= start && ts <= end;
-    });
+    const inRange = all.filter((t) => { const ts = new Date(t.timestamp); return ts >= start && ts <= end; });
 
     let items = [];
     if (type === "revenue" || type === "unitsSold") {
@@ -139,14 +172,13 @@ router.get("/details", requireAuth, async (req, res) => {
   }
 });
 
-// GET /analytics/low-stock - products under their warning threshold
+// GET /analytics/low-stock
 router.get("/low-stock", requireAuth, async (req, res) => {
   try {
     const result = await ddbDocClient.send(new ScanCommand({ TableName: TABLES.PRODUCTS }));
     const lowStock = (result.Items || []).filter((p) => p.quantity <= p.lowStockThreshold);
     res.json(lowStock);
   } catch (err) {
-    console.error("Low stock error:", err);
     res.status(500).json({ error: "Could not check low stock items." });
   }
 });
