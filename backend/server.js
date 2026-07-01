@@ -7,6 +7,7 @@ const authRoutes = require("./routes/auth");
 const productRoutes = require("./routes/products");
 const transactionRoutes = require("./routes/transactions");
 const analyticsRoutes = require("./routes/analytics");
+const categoryRoutes = require("./routes/categories");
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use("/auth", authRoutes);
 app.use("/products", productRoutes);
 app.use("/transactions", transactionRoutes);
 app.use("/analytics", analyticsRoutes);
+app.use("/categories", categoryRoutes);
 
 // Catch-all for unknown routes
 app.use((req, res) => {

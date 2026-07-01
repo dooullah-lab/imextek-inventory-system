@@ -1,6 +1,6 @@
 // src/pages/Login.jsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import logo from "../assets/logo.png";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
@@ -98,6 +98,13 @@ export default function Login() {
               {loading && <Loader2 size={16} className="animate-spin" />}
               {loading ? "Signing in..." : "Sign in"}
             </button>
+
+            <div className="text-center">
+              <Link to="/forgot-password"
+                className="text-xs text-brand-300 hover:text-brand-500 transition-colors">
+                Forgot your password?
+              </Link>
+            </div>
           </form>
         </div>
 
