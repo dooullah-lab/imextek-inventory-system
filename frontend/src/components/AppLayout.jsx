@@ -5,7 +5,7 @@ import logo from "../assets/logo.png";
 import {
   LayoutDashboard, LayoutGrid, BarChart3, History,
   LogOut, Menu, X, ShieldCheck, Tag, UserCircle,
-  Receipt, ShoppingCart,
+  Receipt, ShoppingCart, FileText,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -16,6 +16,7 @@ const fullNavItems = [
   { to: "/inventory", label: "Inventory", icon: LayoutGrid },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/expenses", label: "Operating Expenses", icon: Receipt },
+  { to: "/reports", label: "Reports", icon: FileText },
   { to: "/activity", label: "Activity Log", icon: History },
   { to: "/categories", label: "Categories", icon: Tag },
 ];

@@ -378,13 +378,23 @@ export default function Inventory() {
                   <div className="flex items-center gap-2">
                     {item ? (
                       <>
-                        <button onClick={() => setRestockItems((prev) => item.quantity <= 1
-                          ? prev.filter((r) => r.product.productId !== p.productId)
-                          : prev.map((r) => r.product.productId === p.productId ? { ...r, quantity: r.quantity - 1 } : r))}
-                          className="w-6 h-6 border border-brand-100 rounded flex items-center justify-center text-brand-500">-</button>
-                        <span className="text-brand-700 font-medium w-6 text-center">{item.quantity}</span>
-                        <button onClick={() => setRestockItems((prev) => prev.map((r) => r.product.productId === p.productId ? { ...r, quantity: r.quantity + 1 } : r))}
-                          className="w-6 h-6 border border-brand-100 rounded flex items-center justify-center text-brand-500">+</button>
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const val = Math.max(1, Number(e.target.value) || 1);
+                            setRestockItems((prev) => prev.map((r) =>
+                              r.product.productId === p.productId ? { ...r, quantity: val } : r
+                            ));
+                          }}
+                          className="w-20 rounded-md border border-brand-100 px-2 py-1 text-sm text-center focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none"
+                        />
+                        <button
+                          onClick={() => setRestockItems((prev) => prev.filter((r) => r.product.productId !== p.productId))}
+                          className="text-brand-200 hover:text-red-400 text-xs px-1">
+                          ✕
+                        </button>
                       </>
                     ) : (
                       <button onClick={() => addToRestock(p)}

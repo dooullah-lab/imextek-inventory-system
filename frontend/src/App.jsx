@@ -14,6 +14,7 @@ import Users from "./pages/Users";
 import Profile from "./pages/Profile";
 import Categories from "./pages/Categories";
 import Expenses from "./pages/Expenses";
+import Reports from "./pages/Reports";
 
 // Redirect to the right home page based on role
 function HomeRedirect() {
@@ -63,6 +64,7 @@ export default function App() {
             <Route path="inventory" element={<ManagerRoute><Inventory /></ManagerRoute>} />
             <Route path="analytics" element={<ManagerRoute><Analytics /></ManagerRoute>} />
             <Route path="expenses" element={<ManagerRoute><Expenses /></ManagerRoute>} />
+            <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
             <Route path="activity" element={<ManagerRoute><ActivityLog /></ManagerRoute>} />
             <Route path="categories" element={<ManagerRoute><Categories /></ManagerRoute>} />
             {/* Admin only */}
