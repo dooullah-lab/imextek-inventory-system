@@ -10,6 +10,33 @@ const formatNaira = (n) =>
 
 const EMPTY = { title: "", amount: "", category: "", date: new Date().toISOString().slice(0, 10), notes: "" };
 
+// Defined OUTSIDE component — prevents React unmount/remount on every keystroke
+function ExpenseFormFields({ data, setData, categories }) {
+  return (
+    <div className="space-y-3">
+      <input required placeholder="Expense title (e.g. Office rent)" value={data.title}
+        onChange={(e) => setData({ ...data, title: e.target.value })}
+        className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
+      <div className="grid grid-cols-2 gap-3">
+        <input required type="number" min="0" placeholder="Amount (₦)" value={data.amount}
+          onChange={(e) => setData({ ...data, amount: e.target.value })}
+          className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
+        <input type="date" value={data.date}
+          onChange={(e) => setData({ ...data, date: e.target.value })}
+          className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
+      </div>
+      <select required value={data.category} onChange={(e) => setData({ ...data, category: e.target.value })}
+        className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none bg-white">
+        <option value="">Select category</option>
+        {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
+      <textarea placeholder="Notes (optional)" value={data.notes}
+        onChange={(e) => setData({ ...data, notes: e.target.value })} rows={2}
+        className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none resize-none" />
+    </div>
+  );
+}
+
 export default function Expenses() {
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -87,36 +114,12 @@ export default function Expenses() {
 
   const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
-  const FormFields = ({ data, setData }) => (
-    <div className="space-y-3">
-      <input required placeholder="Expense title (e.g. Office rent)" value={data.title}
-        onChange={(e) => setData({ ...data, title: e.target.value })}
-        className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
-      <div className="grid grid-cols-2 gap-3">
-        <input required type="number" min="0" placeholder="Amount (₦)" value={data.amount}
-          onChange={(e) => setData({ ...data, amount: e.target.value })}
-          className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
-        <input type="date" value={data.date}
-          onChange={(e) => setData({ ...data, date: e.target.value })}
-          className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
-      </div>
-      <select required value={data.category} onChange={(e) => setData({ ...data, category: e.target.value })}
-        className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none bg-white">
-        <option value="">Select category</option>
-        {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-      </select>
-      <textarea placeholder="Notes (optional)" value={data.notes}
-        onChange={(e) => setData({ ...data, notes: e.target.value })} rows={2}
-        className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none resize-none" />
-    </div>
-  );
-
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="font-display text-2xl font-semibold text-brand-700 flex items-center gap-2">
-            <Receipt size={22} className="text-brand-500" /> Net Expenses
+            <Receipt size={22} className="text-brand-500" /> Operating Expenses
           </h1>
           <p className="text-sm text-brand-300 mt-0.5">
             Total recorded: <span className="font-medium text-copper-600">{formatNaira(totalExpenses)}</span>
@@ -198,9 +201,9 @@ export default function Expenses() {
         </div>
       )}
 
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Record new expense">
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Record new operating expense">
         <form onSubmit={handleAdd} className="space-y-3">
-          <FormFields data={form} setData={setForm} />
+          <ExpenseFormFields data={form} setData={setForm} categories={categories} />
           <button disabled={submitting} type="submit"
             className="w-full bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg py-2.5 disabled:opacity-60">
             {submitting ? "Adding..." : "Add expense"}
@@ -208,10 +211,10 @@ export default function Expenses() {
         </form>
       </Modal>
 
-      <Modal open={!!editItem} onClose={() => setEditItem(null)} title="Edit expense">
+      <Modal open={!!editItem} onClose={() => setEditItem(null)} title="Edit operating expense">
         {editItem && (
           <form onSubmit={handleEdit} className="space-y-3">
-            <FormFields data={editItem} setData={setEditItem} />
+            <ExpenseFormFields data={editItem} setData={setEditItem} categories={categories} />
             <button disabled={submitting} type="submit"
               className="w-full bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg py-2.5 disabled:opacity-60">
               {submitting ? "Saving..." : "Save changes"}

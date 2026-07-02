@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import api from "../api/client";
 import Modal from "../components/Modal";
 import ExportMenu from "../components/ExportMenu";
-import Receipt from "../components/Receipt";
 import BulkUpload from "../components/BulkUpload";
+import ProductForm from "../components/ProductForm";
 import { useAuth } from "../context/AuthContext";
 import {
   Plus, PackagePlus, AlertTriangle, Search,
@@ -152,7 +152,7 @@ export default function Inventory() {
     </select>
   );
 
-  const ProductForm = ({ data, setData, onSubmit, submitLabel }) => (
+  const ProductFormInline = ({ data, setData, onSubmit, submitLabel }) => (
     <form onSubmit={onSubmit} className="space-y-3">
       <input required placeholder="Product name" value={data.name}
         onChange={(e) => setData({ ...data, name: e.target.value })}
@@ -287,7 +287,7 @@ export default function Inventory() {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-1.5">
-                          <button onClick={() => addToRestock(p)}
+                          <button onClick={() => { addToRestock(p); setRestockModal(true); }}
                             className="text-xs font-medium text-copper-600 border border-copper-100
                                        hover:border-copper-400 rounded-md px-2.5 py-1.5 transition-colors flex items-center gap-1">
                             <PackagePlus size={12} /> Restock
@@ -315,17 +315,28 @@ export default function Inventory() {
 
       {/* Add Product */}
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add new product">
-        <ProductForm data={newProduct} setData={setNewProduct} onSubmit={handleAdd} submitLabel="Add product" />
+        <ProductForm
+          data={newProduct}
+          setData={setNewProduct}
+          onSubmit={handleAdd}
+          submitLabel="Add product"
+          submitting={submitting}
+          categories={categories}
+          showQuantity={true}
+        />
       </Modal>
 
       {/* Edit Product */}
       <Modal open={!!editModal} onClose={() => setEditModal(null)} title="Edit product">
         {editModal && (
           <ProductForm
-            data={{ ...editModal, quantity: undefined }}
+            data={{ ...editModal, sellingPrice: editModal.sellingPrice || editModal.price }}
             setData={setEditModal}
             onSubmit={handleEdit}
             submitLabel="Save changes"
+            submitting={submitting}
+            categories={categories}
+            showQuantity={false}
           />
         )}
       </Modal>

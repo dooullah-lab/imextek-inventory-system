@@ -6,8 +6,14 @@ import { useNavigate } from "react-router-dom";
 import {
   TrendingUp, Package, ShoppingCart, AlertTriangle,
   ArrowDownCircle, ArrowUpCircle, Loader2, ArrowRight,
-  TrendingDown, DollarSign, Warehouse,
+  TrendingDown, Warehouse,
 } from "lucide-react";
+
+function NairaIcon({ size = 17, className = "" }) {
+  return (
+    <span className={className} style={{ fontSize: size, fontWeight: 700, lineHeight: 1 }}>₦</span>
+  );
+}
 
 const formatNaira = (n) =>
   new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n || 0);
@@ -75,9 +81,9 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
             <StatCard icon={TrendingUp} label="Today's Revenue" value={formatNaira(summary?.totalRevenue)} accent="bg-brand-500" sub="From sales today" />
             <StatCard icon={ShoppingCart} label="Units Sold Today" value={summary?.unitsSold || 0} accent="bg-copper-500" />
-            <StatCard icon={TrendingDown} label="Net Expenses" value={formatNaira(summary?.netExpenses)} accent="bg-red-500" sub="Today" />
+            <StatCard icon={TrendingDown} label="Operating Expenses" value={formatNaira(summary?.operatingExpenses)} accent="bg-red-500" sub="Today" />
             <StatCard
-              icon={DollarSign}
+              icon={NairaIcon}
               label="Net Profit Today"
               value={formatNaira(summary?.netProfit)}
               accent={(summary?.netProfit || 0) >= 0 ? "bg-green-500" : "bg-red-500"}

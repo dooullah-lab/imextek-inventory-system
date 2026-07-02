@@ -15,7 +15,7 @@ const fullNavItems = [
   { to: "/pos", label: "Point of Sale", icon: ShoppingCart },
   { to: "/inventory", label: "Inventory", icon: LayoutGrid },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/expenses", label: "Net Expenses", icon: Receipt },
+  { to: "/expenses", label: "Operating Expenses", icon: Receipt },
   { to: "/activity", label: "Activity Log", icon: History },
   { to: "/categories", label: "Categories", icon: Tag },
 ];

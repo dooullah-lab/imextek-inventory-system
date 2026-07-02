@@ -62,9 +62,9 @@ router.get("/summary", requireAuth, async (req, res) => {
     const unitsSold = sales.reduce((sum, t) => sum + t.quantity, 0);
     const unitsRestocked = restocks.reduce((sum, t) => sum + t.quantity, 0);
     const totalCostOfGoods = sales.reduce((sum, t) => sum + (t.costOfGoods || 0), 0);
-    const netExpenses = expInRange.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const operatingExpenses = expInRange.reduce((sum, e) => sum + (e.amount || 0), 0);
     const grossProfit = totalRevenue - totalCostOfGoods;
-    const netProfit = grossProfit - netExpenses;
+    const netProfit = grossProfit - operatingExpenses;
 
     // Total cost of purchase for current stock
     const totalInventoryCost = allProducts.reduce(
@@ -127,7 +127,7 @@ router.get("/summary", requireAuth, async (req, res) => {
     res.json({
       range, groupBy,
       totalRevenue, unitsSold, unitsRestocked,
-      totalCostOfGoods, netExpenses, grossProfit, netProfit,
+      totalCostOfGoods, operatingExpenses, grossProfit, netProfit,
       totalInventoryCost, transactionCount: inRange.length,
       topProducts, expensesByCategory, dailyBreakdown,
     });
@@ -146,7 +146,7 @@ router.get("/details", requireAuth, async (req, res) => {
       const lowStock = (result.Items || []).filter((p) => p.quantity <= p.lowStockThreshold);
       return res.json({ type, items: lowStock });
     }
-    if (type === "expenses" || type === "netExpenses") {
+    if (type === "expenses" || type === "operatingExpenses") {
       const { start, end } = resolveRange(range, from, to);
       const result = await ddbDocClient.send(new ScanCommand({ TableName: TABLES.EXPENSES }));
       const items = (result.Items || [])

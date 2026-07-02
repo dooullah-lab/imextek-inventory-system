@@ -9,8 +9,15 @@ import {
 } from "recharts";
 import {
   TrendingUp, Package, ShoppingCart, AlertTriangle,
-  Loader2, Calendar, TrendingDown, DollarSign, Warehouse,
+  Loader2, Calendar, TrendingDown, Warehouse,
 } from "lucide-react";
+
+// Custom Naira icon since lucide doesn't have one
+function NairaIcon({ size = 17, className = "" }) {
+  return (
+    <span className={className} style={{ fontSize: size, fontWeight: 700, lineHeight: 1 }}>₦</span>
+  );
+}
 
 const formatNaira = (n) =>
   new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n || 0);
@@ -43,7 +50,7 @@ const DETAIL_TITLES = {
   unitsSold: "Items sold",
   unitsRestocked: "Items restocked",
   lowStock: "Low stock items",
-  netExpenses: "Net Expenses breakdown",
+  operatingExpenses: "Operating Expenses breakdown",
   costOfPurchase: "Cost of purchase — current stock",
   profit: "Profit breakdown",
 };
@@ -73,7 +80,7 @@ const DETAIL_COLUMNS = {
     { key: "quantity", label: "Stock" },
     { key: "lowStockThreshold", label: "Threshold" },
   ],
-  netExpenses: [
+  operatingExpenses: [
     { key: "date", label: "Date" },
     { key: "title", label: "Title" },
     { key: "category", label: "Category" },
@@ -164,7 +171,7 @@ export default function Analytics() {
               { key: "date", label: "Period" },
               { key: "revenue", label: "Revenue (NGN)" },
               { key: "costOfGoods", label: "Cost of Goods (NGN)" },
-              { key: "expenses", label: "Net Expenses (NGN)" },
+              { key: "expenses", label: "Operating Expenses (NGN)" },
               { key: "profit", label: "Profit (NGN)" },
             ]}
             rows={data?.dailyBreakdown || []}
@@ -221,12 +228,12 @@ export default function Analytics() {
             <StatCard icon={ShoppingCart} label="Units Sold" value={data.unitsSold} accent="bg-copper-500" onClick={() => openDetail("unitsSold")} />
             <StatCard icon={Package} label="Restocked" value={data.unitsRestocked} accent="bg-brand-400" onClick={() => openDetail("unitsRestocked")} />
             <StatCard icon={Warehouse} label="Cost of Purchase" value={formatNaira(data.totalInventoryCost)} accent="bg-brand-600" sub="Current stock value" onClick={() => openDetail("costOfPurchase")} />
-            <StatCard icon={TrendingDown} label="Net Expenses" value={formatNaira(data.netExpenses)} accent="bg-red-500" onClick={() => openDetail("netExpenses")} />
-            <StatCard icon={DollarSign} label="Gross Profit" value={formatNaira(data.grossProfit)}
+            <StatCard icon={TrendingDown} label="Operating Expenses" value={formatNaira(data.operatingExpenses)} accent="bg-red-500" onClick={() => openDetail("operatingExpenses")} />
+            <StatCard icon={NairaIcon} label="Gross Profit" value={formatNaira(data.grossProfit)}
               accent={data.grossProfit >= 0 ? "bg-green-500" : "bg-red-500"}
               sub="Revenue minus cost of goods"
               onClick={() => openDetail("profit")} />
-            <StatCard icon={DollarSign} label="Net Profit" value={formatNaira(data.netProfit)}
+            <StatCard icon={NairaIcon} label="Net Profit" value={formatNaira(data.netProfit)}
               accent={data.netProfit >= 0 ? "bg-green-600" : "bg-red-600"}
               sub={data.netProfit >= 0 ? "After all expenses" : "Running at a loss"}
               onClick={() => openDetail("profit")} />
@@ -237,7 +244,7 @@ export default function Analytics() {
           <div className="grid lg:grid-cols-3 gap-4 mb-4">
             <div className="lg:col-span-2 bg-white rounded-xl border border-brand-50 shadow-card p-5">
               <h3 className="font-display text-sm font-semibold text-brand-700 mb-4">
-                Revenue vs Net Expenses {data.groupBy === "month" ? "(monthly)" : "(daily)"}
+                Revenue vs Operating Expenses {data.groupBy === "month" ? "(monthly)" : "(daily)"}
               </h3>
               {data.dailyBreakdown.length === 0 ? (
                 <p className="text-sm text-brand-300 py-10 text-center">No data in this period yet.</p>
@@ -250,7 +257,7 @@ export default function Analytics() {
                     <Tooltip formatter={(v) => formatNaira(v)} contentStyle={{ borderRadius: 8, border: "1px solid #E6EEF2", fontSize: 12 }} />
                     <Legend />
                     <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#FF8C42" strokeWidth={2.5} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="expenses" name="Net Expenses" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="4 2" />
+                    <Line type="monotone" dataKey="expenses" name="Operating Expenses" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="4 2" />
                     <Line type="monotone" dataKey="profit" name="Profit" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="6 2" />
                   </LineChart>
                 </ResponsiveContainer>
@@ -258,7 +265,7 @@ export default function Analytics() {
             </div>
 
             <div className="bg-white rounded-xl border border-brand-50 shadow-card p-5">
-              <h3 className="font-display text-sm font-semibold text-brand-700 mb-4">Net Expenses by category</h3>
+              <h3 className="font-display text-sm font-semibold text-brand-700 mb-4">Operating Expenses by category</h3>
               {data.expensesByCategory.length === 0 ? (
                 <p className="text-sm text-brand-300 py-10 text-center">No expenses in this period.</p>
               ) : (
@@ -324,7 +331,7 @@ export default function Analytics() {
                     <span className="text-copper-600 font-mono text-xs">{p.quantity} left (min {p.lowStockThreshold})</span>
                   </div>
                 ))}
-                {detailModal?.type === "netExpenses" && detailModal.items.map((e) => (
+                {detailModal?.type === "operatingExpenses" && detailModal.items.map((e) => (
                   <div key={e.expenseId} className="flex items-center justify-between text-sm border-b border-brand-50 pb-2 last:border-0">
                     <div>
                       <span className="text-brand-700">{e.title}</span>
