@@ -4,16 +4,17 @@ import api from "../api/client";
 import Modal from "../components/Modal";
 import ExportMenu from "../components/ExportMenu";
 import Receipt from "../components/Receipt";
+import BulkUpload from "../components/BulkUpload";
 import { useAuth } from "../context/AuthContext";
 import {
-  Plus, Minus, PackagePlus, AlertTriangle, Search,
-  Loader2, Pencil, Trash2,
+  Plus, PackagePlus, AlertTriangle, Search,
+  Loader2, Pencil, Trash2, Upload,
 } from "lucide-react";
 
 const formatNaira = (n) =>
   new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n || 0);
 
-const EMPTY_PRODUCT = { name: "", category: "", quantity: "", price: "", lowStockThreshold: "5" };
+const EMPTY = { name: "", category: "", quantity: "", purchasePrice: "", sellingPrice: "", lowStockThreshold: "5" };
 
 export default function Inventory() {
   const { user } = useAuth();
@@ -21,15 +22,15 @@ export default function Inventory() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [actionModal, setActionModal] = useState(null);
-  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [editModal, setEditModal] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [actionQty, setActionQty] = useState(1);
+  const [restockModal, setRestockModal] = useState(null); // multi-item restock
+  const [restockItems, setRestockItems] = useState([]); // [{ product, quantity }]
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
-  const [newProduct, setNewProduct] = useState(EMPTY_PRODUCT);
-  const [receipt, setReceipt] = useState(null);
+  const [newProduct, setNewProduct] = useState(EMPTY);
 
   const loadData = async () => {
     setLoading(true);
@@ -54,18 +55,19 @@ export default function Inventory() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleAddProduct = async (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
       await api.post("/products", {
         ...newProduct,
         quantity: Number(newProduct.quantity),
-        price: Number(newProduct.price),
+        purchasePrice: Number(newProduct.purchasePrice),
+        sellingPrice: Number(newProduct.sellingPrice),
         lowStockThreshold: Number(newProduct.lowStockThreshold),
       });
-      setAddModalOpen(false);
-      setNewProduct(EMPTY_PRODUCT);
+      setAddOpen(false);
+      setNewProduct(EMPTY);
       showToast("Product added.");
       loadData();
     } catch (err) {
@@ -75,21 +77,21 @@ export default function Inventory() {
     }
   };
 
-  const handleEditProduct = async (e) => {
+  const handleEdit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
       await api.patch(`/products/${editModal.productId}`, {
-        name: editModal.name,
-        category: editModal.category,
-        price: Number(editModal.price),
+        name: editModal.name, category: editModal.category,
+        purchasePrice: Number(editModal.purchasePrice),
+        sellingPrice: Number(editModal.sellingPrice),
         lowStockThreshold: Number(editModal.lowStockThreshold),
       });
       setEditModal(null);
       showToast("Product updated.");
       loadData();
     } catch (err) {
-      showToast(err.response?.data?.error || "Could not update product.", "error");
+      showToast(err.response?.data?.error || "Could not update.", "error");
     } finally {
       setSubmitting(false);
     }
@@ -103,51 +105,93 @@ export default function Inventory() {
       showToast("Product deleted.");
       loadData();
     } catch (err) {
-      showToast(err.response?.data?.error || "Could not delete product.", "error");
+      showToast(err.response?.data?.error || "Could not delete.", "error");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleAction = async (e) => {
-    e.preventDefault();
+  // Multi-item restock
+  const addToRestock = (product) => {
+    setRestockItems((prev) => {
+      const existing = prev.find((r) => r.product.productId === product.productId);
+      if (existing) return prev.map((r) => r.product.productId === product.productId ? { ...r, quantity: r.quantity + 1 } : r);
+      return [...prev, { product, quantity: 1 }];
+    });
+  };
+
+  const handleConfirmRestock = async () => {
+    if (restockItems.length === 0) return;
     setSubmitting(true);
     try {
-      const endpoint = actionModal.type === "sale" ? "/transactions/sale" : "/transactions/restock";
-      const res = await api.post(endpoint, {
-        productId: actionModal.product.productId,
-        quantity: Number(actionQty),
+      await api.post("/transactions/restock", {
+        items: restockItems.map((r) => ({ productId: r.product.productId, quantity: r.quantity })),
       });
-      if (actionModal.type === "sale") {
-        setReceipt(res.data.transaction);
-      } else {
-        showToast("Stock restocked.");
-      }
-      setActionModal(null);
-      setActionQty(1);
+      setRestockItems([]);
+      setRestockModal(false);
+      showToast("Restock recorded.");
       loadData();
     } catch (err) {
-      showToast(err.response?.data?.error || "Action failed.", "error");
+      showToast(err.response?.data?.error || "Could not restock.", "error");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const filtered = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.category || "").toLowerCase().includes(search.toLowerCase())
+  const filtered = products.filter((p) =>
+    p.name.toLowerCase().includes(search.toLowerCase()) ||
+    (p.category || "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const CategorySelect = ({ value, onChange, className }) => (
+  const CategorySelect = ({ value, onChange }) => (
     <select value={value} onChange={(e) => onChange(e.target.value)}
-      className={className || "w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none bg-white"}>
+      className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none bg-white">
       <option value="">Select category</option>
-      {categories.map((c) => (
-        <option key={c.categoryId} value={c.name}>{c.name}</option>
-      ))}
+      {categories.map((c) => <option key={c.categoryId} value={c.name}>{c.name}</option>)}
       <option value="Uncategorized">Uncategorized</option>
     </select>
+  );
+
+  const ProductForm = ({ data, setData, onSubmit, submitLabel }) => (
+    <form onSubmit={onSubmit} className="space-y-3">
+      <input required placeholder="Product name" value={data.name}
+        onChange={(e) => setData({ ...data, name: e.target.value })}
+        className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
+      <CategorySelect value={data.category} onChange={(val) => setData({ ...data, category: val })} />
+      {data.quantity !== undefined && (
+        <input required type="number" min="0" placeholder="Initial quantity" value={data.quantity}
+          onChange={(e) => setData({ ...data, quantity: e.target.value })}
+          className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-brand-400 mb-1">Purchase Price (₦)</label>
+          <input required type="number" min="0" placeholder="Cost price" value={data.purchasePrice}
+            onChange={(e) => setData({ ...data, purchasePrice: e.target.value })}
+            className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
+        </div>
+        <div>
+          <label className="block text-xs text-brand-400 mb-1">Selling Price (₦)</label>
+          <input required type="number" min="0" placeholder="Sale price" value={data.sellingPrice}
+            onChange={(e) => setData({ ...data, sellingPrice: e.target.value })}
+            className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
+        </div>
+      </div>
+      {data.purchasePrice && data.sellingPrice && (
+        <div className={"rounded-lg px-3 py-2 text-xs " +
+          (Number(data.sellingPrice) > Number(data.purchasePrice) ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700")}>
+          Margin: {formatNaira(Number(data.sellingPrice) - Number(data.purchasePrice))} per unit
+          {" "}({Number(data.purchasePrice) > 0 ? (((Number(data.sellingPrice) - Number(data.purchasePrice)) / Number(data.purchasePrice)) * 100).toFixed(1) : 0}%)
+        </div>
+      )}
+      <input type="number" min="0" placeholder="Low stock threshold (default 5)" value={data.lowStockThreshold}
+        onChange={(e) => setData({ ...data, lowStockThreshold: e.target.value })}
+        className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
+      <button disabled={submitting} type="submit"
+        className="w-full bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg py-2.5 disabled:opacity-60">
+        {submitting ? "Saving..." : submitLabel}
+      </button>
+    </form>
   );
 
   return (
@@ -157,25 +201,34 @@ export default function Inventory() {
           <h1 className="font-display text-2xl font-semibold text-brand-700">Inventory</h1>
           <p className="text-sm text-brand-300 mt-0.5">{products.length} products tracked</p>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <ExportMenu
             filename="imextek-inventory"
             title="ImEx-Tek Inventory Report"
             columns={[
               { key: "name", label: "Product" },
               { key: "category", label: "Category" },
-              { key: "price", label: "Price (NGN)" },
+              { key: "purchasePrice", label: "Purchase Price (NGN)" },
+              { key: "sellingPrice", label: "Selling Price (NGN)" },
               { key: "quantity", label: "Stock" },
               { key: "lowStockThreshold", label: "Low Stock Threshold" },
             ]}
             rows={products}
           />
-          <button
-            onClick={() => setAddModalOpen(true)}
-            className="flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 text-white
-                       text-sm font-medium rounded-lg px-4 py-2.5 transition-colors flex-1 sm:flex-none"
-          >
-            <Plus size={16} /> Add product
+          <button onClick={() => setRestockModal(true)}
+            className="flex items-center gap-2 border border-brand-100 hover:border-brand-300 text-brand-600
+                       text-sm font-medium rounded-lg px-3.5 py-2 transition-colors">
+            <PackagePlus size={15} /> Restock
+          </button>
+          <button onClick={() => setBulkOpen(true)}
+            className="flex items-center gap-2 border border-brand-100 hover:border-brand-300 text-brand-600
+                       text-sm font-medium rounded-lg px-3.5 py-2 transition-colors">
+            <Upload size={15} /> Import
+          </button>
+          <button onClick={() => setAddOpen(true)}
+            className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white
+                       text-sm font-medium rounded-lg px-4 py-2 transition-colors">
+            <Plus size={15} /> Add product
           </button>
         </div>
       </div>
@@ -192,12 +245,6 @@ export default function Inventory() {
         <div className="flex items-center justify-center py-20 text-brand-300">
           <Loader2 className="animate-spin" size={24} />
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-brand-50 p-12 text-center">
-          <p className="text-brand-400 text-sm">
-            {products.length === 0 ? "No products yet. Add your first product to get started." : "No products match your search."}
-          </p>
-        </div>
       ) : (
         <div className="bg-white rounded-xl border border-brand-50 shadow-card overflow-hidden">
           <div className="overflow-x-auto">
@@ -206,19 +253,32 @@ export default function Inventory() {
                 <tr className="border-b border-brand-50 text-left text-brand-300 text-xs uppercase tracking-wide">
                   <th className="px-5 py-3 font-medium">Product</th>
                   <th className="px-5 py-3 font-medium">Category</th>
-                  <th className="px-5 py-3 font-medium">Price</th>
+                  <th className="px-5 py-3 font-medium">Purchase ₦</th>
+                  <th className="px-5 py-3 font-medium">Selling ₦</th>
+                  <th className="px-5 py-3 font-medium">Margin</th>
                   <th className="px-5 py-3 font-medium">Stock</th>
                   <th className="px-5 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => {
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={7} className="px-5 py-12 text-center text-sm text-brand-300">
+                    {products.length === 0 ? "No products yet." : "No products match your search."}
+                  </td></tr>
+                ) : filtered.map((p) => {
                   const low = p.quantity <= p.lowStockThreshold;
+                  const margin = (p.sellingPrice || p.price || 0) - (p.purchasePrice || 0);
                   return (
                     <tr key={p.productId} className="border-b border-brand-50 last:border-0 hover:bg-brand-50/40">
                       <td className="px-5 py-3.5 font-medium text-brand-700">{p.name}</td>
                       <td className="px-5 py-3.5 text-brand-400">{p.category || "—"}</td>
-                      <td className="px-5 py-3.5 text-brand-600 font-mono text-[13px]">{formatNaira(p.price)}</td>
+                      <td className="px-5 py-3.5 text-brand-500 font-mono text-[13px]">{formatNaira(p.purchasePrice || 0)}</td>
+                      <td className="px-5 py-3.5 text-brand-600 font-mono text-[13px]">{formatNaira(p.sellingPrice || p.price)}</td>
+                      <td className="px-5 py-3.5">
+                        <span className={"text-xs font-medium " + (margin > 0 ? "text-green-600" : "text-red-500")}>
+                          {formatNaira(margin)}
+                        </span>
+                      </td>
                       <td className="px-5 py-3.5">
                         <span className={"inline-flex items-center gap-1 font-medium " + (low ? "text-copper-600" : "text-brand-600")}>
                           {low && <AlertTriangle size={13} />}
@@ -227,17 +287,12 @@ export default function Inventory() {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-1.5">
-                          <button onClick={() => setActionModal({ type: "sale", product: p })}
-                            className="flex items-center gap-1 text-xs font-medium text-brand-500 hover:text-brand-700
-                                       border border-brand-100 hover:border-brand-300 rounded-md px-2.5 py-1.5 transition-colors">
-                            <Minus size={12} /> Sell
-                          </button>
-                          <button onClick={() => setActionModal({ type: "restock", product: p })}
-                            className="flex items-center gap-1 text-xs font-medium text-copper-600
-                                       border border-copper-100 hover:border-copper-400 rounded-md px-2.5 py-1.5 transition-colors">
+                          <button onClick={() => addToRestock(p)}
+                            className="text-xs font-medium text-copper-600 border border-copper-100
+                                       hover:border-copper-400 rounded-md px-2.5 py-1.5 transition-colors flex items-center gap-1">
                             <PackagePlus size={12} /> Restock
                           </button>
-                          <button onClick={() => setEditModal({ ...p })}
+                          <button onClick={() => setEditModal({ ...p, sellingPrice: p.sellingPrice || p.price })}
                             className="text-brand-300 hover:text-brand-600 p-1.5 transition-colors">
                             <Pencil size={14} />
                           </button>
@@ -258,67 +313,33 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* Add Product Modal */}
-      <Modal open={addModalOpen} onClose={() => setAddModalOpen(false)} title="Add new product">
-        <form onSubmit={handleAddProduct} className="space-y-3">
-          <input required placeholder="Product name" value={newProduct.name}
-            onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-            className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
-          <CategorySelect value={newProduct.category}
-            onChange={(val) => setNewProduct({ ...newProduct, category: val })} />
-          <div className="grid grid-cols-2 gap-3">
-            <input required type="number" min="0" placeholder="Quantity" value={newProduct.quantity}
-              onChange={(e) => setNewProduct({ ...newProduct, quantity: e.target.value })}
-              className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
-            <input required type="number" min="0" placeholder="Price (₦)" value={newProduct.price}
-              onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-              className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
-          </div>
-          <input type="number" min="0" placeholder="Low stock alert threshold (default 5)" value={newProduct.lowStockThreshold}
-            onChange={(e) => setNewProduct({ ...newProduct, lowStockThreshold: e.target.value })}
-            className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
-          <button disabled={submitting} type="submit"
-            className="w-full bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg py-2.5 mt-2 disabled:opacity-60">
-            {submitting ? "Adding..." : "Add product"}
-          </button>
-        </form>
+      {/* Add Product */}
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add new product">
+        <ProductForm data={newProduct} setData={setNewProduct} onSubmit={handleAdd} submitLabel="Add product" />
       </Modal>
 
-      {/* Edit Product Modal */}
+      {/* Edit Product */}
       <Modal open={!!editModal} onClose={() => setEditModal(null)} title="Edit product">
         {editModal && (
-          <form onSubmit={handleEditProduct} className="space-y-3">
-            <input required placeholder="Product name" value={editModal.name}
-              onChange={(e) => setEditModal({ ...editModal, name: e.target.value })}
-              className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
-            <CategorySelect value={editModal.category}
-              onChange={(val) => setEditModal({ ...editModal, category: val })} />
-            <input required type="number" min="0" placeholder="Price (₦)" value={editModal.price}
-              onChange={(e) => setEditModal({ ...editModal, price: e.target.value })}
-              className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
-            <input type="number" min="0" placeholder="Low stock threshold" value={editModal.lowStockThreshold}
-              onChange={(e) => setEditModal({ ...editModal, lowStockThreshold: e.target.value })}
-              className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none" />
-            <p className="text-xs text-brand-300">Note: to adjust stock quantity, use the Sell or Restock buttons — this keeps the activity log accurate.</p>
-            <button disabled={submitting} type="submit"
-              className="w-full bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg py-2.5 disabled:opacity-60">
-              {submitting ? "Saving..." : "Save changes"}
-            </button>
-          </form>
+          <ProductForm
+            data={{ ...editModal, quantity: undefined }}
+            setData={setEditModal}
+            onSubmit={handleEdit}
+            submitLabel="Save changes"
+          />
         )}
       </Modal>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation */}
       <Modal open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Delete product">
         {deleteConfirm && (
           <div className="space-y-4">
             <p className="text-sm text-brand-600">
-              Are you sure you want to delete <strong>{deleteConfirm.name}</strong>?
-              This can't be undone. Transaction history for this product will be kept.
+              Are you sure you want to delete <strong>{deleteConfirm.name}</strong>? This can't be undone.
             </p>
             <div className="flex gap-2">
               <button onClick={() => setDeleteConfirm(null)}
-                className="flex-1 border border-brand-100 text-brand-600 text-sm font-medium rounded-lg py-2.5 hover:bg-brand-50">
+                className="flex-1 border border-brand-100 text-brand-600 text-sm font-medium rounded-lg py-2.5">
                 Cancel
               </button>
               <button onClick={() => handleDelete(deleteConfirm.productId)} disabled={submitting}
@@ -330,27 +351,61 @@ export default function Inventory() {
         )}
       </Modal>
 
-      {/* Sell / Restock Modal */}
-      <Modal open={!!actionModal} onClose={() => setActionModal(null)}
-        title={actionModal?.type === "sale" ? "Record a sale" : "Restock product"}>
-        <form onSubmit={handleAction} className="space-y-3">
-          <p className="text-sm text-brand-500">
-            {actionModal?.product?.name} &middot; currently {actionModal?.product?.quantity} in stock
-          </p>
-          <input required type="number" min="1" value={actionQty}
-            onChange={(e) => setActionQty(e.target.value)}
-            className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none"
-            placeholder="Quantity" />
-          <button disabled={submitting} type="submit"
-            className={"w-full text-white text-sm font-medium rounded-lg py-2.5 disabled:opacity-60 " +
-              (actionModal?.type === "sale" ? "bg-brand-500 hover:bg-brand-600" : "bg-copper-500 hover:bg-copper-600")}>
-            {submitting ? "Saving..." : actionModal?.type === "sale" ? "Confirm sale" : "Confirm restock"}
+      {/* Multi-item Restock Modal */}
+      <Modal open={!!restockModal} onClose={() => { setRestockModal(false); setRestockItems([]); }} title="Restock products">
+        <div className="space-y-3">
+          <p className="text-sm text-brand-400">Select products from the inventory table to add them here, or search below.</p>
+          <div className="max-h-52 overflow-y-auto space-y-2 border border-brand-50 rounded-lg p-2">
+            {products.map((p) => {
+              const item = restockItems.find((r) => r.product.productId === p.productId);
+              return (
+                <div key={p.productId} className="flex items-center justify-between text-sm py-1.5 px-2 rounded hover:bg-brand-50">
+                  <div>
+                    <span className="font-medium text-brand-700">{p.name}</span>
+                    <span className="text-brand-300 text-xs ml-2">{p.quantity} in stock</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {item ? (
+                      <>
+                        <button onClick={() => setRestockItems((prev) => item.quantity <= 1
+                          ? prev.filter((r) => r.product.productId !== p.productId)
+                          : prev.map((r) => r.product.productId === p.productId ? { ...r, quantity: r.quantity - 1 } : r))}
+                          className="w-6 h-6 border border-brand-100 rounded flex items-center justify-center text-brand-500">-</button>
+                        <span className="text-brand-700 font-medium w-6 text-center">{item.quantity}</span>
+                        <button onClick={() => setRestockItems((prev) => prev.map((r) => r.product.productId === p.productId ? { ...r, quantity: r.quantity + 1 } : r))}
+                          className="w-6 h-6 border border-brand-100 rounded flex items-center justify-center text-brand-500">+</button>
+                      </>
+                    ) : (
+                      <button onClick={() => addToRestock(p)}
+                        className="text-xs text-brand-500 border border-brand-100 hover:border-brand-300 rounded px-2.5 py-1">
+                        Add
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {restockItems.length > 0 && (
+            <div className="bg-brand-50 rounded-lg p-3 space-y-1">
+              <p className="text-xs font-medium text-brand-600 mb-2">Restocking {restockItems.length} product(s):</p>
+              {restockItems.map((r) => (
+                <div key={r.product.productId} className="flex justify-between text-xs text-brand-600">
+                  <span>{r.product.name}</span>
+                  <span>+{r.quantity} units</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={handleConfirmRestock} disabled={submitting || restockItems.length === 0}
+            className="w-full bg-copper-500 hover:bg-copper-600 text-white text-sm font-medium rounded-lg py-2.5 disabled:opacity-60">
+            {submitting ? "Saving..." : `Confirm Restock (${restockItems.length} items)`}
           </button>
-        </form>
+        </div>
       </Modal>
 
-      {/* Receipt */}
-      <Receipt open={!!receipt} onClose={() => setReceipt(null)} transaction={receipt} />
+      {/* Bulk Upload */}
+      <BulkUpload open={bulkOpen} onClose={() => setBulkOpen(false)} onSuccess={() => { loadData(); showToast("Products imported successfully."); }} />
 
       {toast && (
         <div className={"fixed bottom-5 right-5 px-4 py-3 rounded-lg shadow-lg text-sm font-medium text-white " +

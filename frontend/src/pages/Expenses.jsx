@@ -116,7 +116,7 @@ export default function Expenses() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="font-display text-2xl font-semibold text-brand-700 flex items-center gap-2">
-            <Receipt size={22} className="text-brand-500" /> Expenses
+            <Receipt size={22} className="text-brand-500" /> Net Expenses
           </h1>
           <p className="text-sm text-brand-300 mt-0.5">
             Total recorded: <span className="font-medium text-copper-600">{formatNaira(totalExpenses)}</span>

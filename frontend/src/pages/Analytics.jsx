@@ -9,7 +9,7 @@ import {
 } from "recharts";
 import {
   TrendingUp, Package, ShoppingCart, AlertTriangle,
-  Loader2, Calendar, TrendingDown, DollarSign,
+  Loader2, Calendar, TrendingDown, DollarSign, Warehouse,
 } from "lucide-react";
 
 const formatNaira = (n) =>
@@ -43,14 +43,17 @@ const DETAIL_TITLES = {
   unitsSold: "Items sold",
   unitsRestocked: "Items restocked",
   lowStock: "Low stock items",
-  expenses: "Expenses breakdown",
+  netExpenses: "Net Expenses breakdown",
+  costOfPurchase: "Cost of purchase — current stock",
+  profit: "Profit breakdown",
 };
 
 const DETAIL_COLUMNS = {
   revenue: [
     { key: "productName", label: "Product" },
     { key: "quantity", label: "Qty" },
-    { key: "total", label: "Total (NGN)" },
+    { key: "unitPrice", label: "Selling Price (NGN)" },
+    { key: "total", label: "Revenue (NGN)" },
     { key: "timestamp", label: "Date" },
   ],
   unitsSold: [
@@ -70,11 +73,25 @@ const DETAIL_COLUMNS = {
     { key: "quantity", label: "Stock" },
     { key: "lowStockThreshold", label: "Threshold" },
   ],
-  expenses: [
+  netExpenses: [
     { key: "date", label: "Date" },
     { key: "title", label: "Title" },
     { key: "category", label: "Category" },
     { key: "amount", label: "Amount (NGN)" },
+  ],
+  costOfPurchase: [
+    { key: "name", label: "Product" },
+    { key: "category", label: "Category" },
+    { key: "purchasePrice", label: "Purchase Price (NGN)" },
+    { key: "quantity", label: "Stock" },
+  ],
+  profit: [
+    { key: "productName", label: "Product" },
+    { key: "quantity", label: "Qty" },
+    { key: "total", label: "Revenue (NGN)" },
+    { key: "costOfGoods", label: "Cost of Goods (NGN)" },
+    { key: "profit", label: "Profit (NGN)" },
+    { key: "timestamp", label: "Date" },
   ],
 };
 
@@ -115,10 +132,6 @@ export default function Analytics() {
 
   useEffect(() => { load(range, customFrom, customTo, groupBy); }, [range, groupBy]);
 
-  const applyCustomRange = () => {
-    if (customFrom && customTo) load("custom", customFrom, customTo, groupBy);
-  };
-
   const openDetail = async (type) => {
     setDetailModal({ type, items: [] });
     setDetailLoading(true);
@@ -142,15 +155,17 @@ export default function Analytics() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="font-display text-2xl font-semibold text-brand-700">Analytics</h1>
-            <p className="text-sm text-brand-300 mt-0.5">Revenue, expenses, and performance overview</p>
+            <p className="text-sm text-brand-300 mt-0.5">Revenue, cost, net expenses, and profit overview</p>
           </div>
           <ExportMenu
             filename="imextek-analytics"
-            title="ImEx-Tek Analytics Summary"
+            title="ImEx-Tek Analytics"
             columns={[
               { key: "date", label: "Period" },
               { key: "revenue", label: "Revenue (NGN)" },
-              { key: "expenses", label: "Expenses (NGN)" },
+              { key: "costOfGoods", label: "Cost of Goods (NGN)" },
+              { key: "expenses", label: "Net Expenses (NGN)" },
+              { key: "profit", label: "Profit (NGN)" },
             ]}
             rows={data?.dailyBreakdown || []}
           />
@@ -175,8 +190,8 @@ export default function Analytics() {
               <span className="text-brand-300 text-xs">to</span>
               <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
                 className="text-xs text-brand-600 outline-none" />
-              <button onClick={applyCustomRange}
-                className="text-xs font-medium bg-brand-500 hover:bg-brand-600 text-white rounded-md px-2.5 py-1 ml-1">
+              <button onClick={() => load("custom", customFrom, customTo, groupBy)}
+                className="text-xs font-medium bg-brand-500 text-white rounded-md px-2.5 py-1 ml-1">
                 Apply
               </button>
             </div>
@@ -200,22 +215,29 @@ export default function Analytics() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+          {/* 7 stat cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <StatCard icon={TrendingUp} label="Revenue" value={formatNaira(data.totalRevenue)} accent="bg-brand-500" onClick={() => openDetail("revenue")} />
             <StatCard icon={ShoppingCart} label="Units Sold" value={data.unitsSold} accent="bg-copper-500" onClick={() => openDetail("unitsSold")} />
             <StatCard icon={Package} label="Restocked" value={data.unitsRestocked} accent="bg-brand-400" onClick={() => openDetail("unitsRestocked")} />
-            <StatCard icon={TrendingDown} label="Expenses" value={formatNaira(data.totalExpenses)} accent="bg-red-500" onClick={() => openDetail("expenses")} />
-            <StatCard icon={DollarSign} label="Net Profit" accent={data.netProfit >= 0 ? "bg-green-500" : "bg-red-500"}
-              value={formatNaira(data.netProfit)}
-              sub={data.netProfit >= 0 ? "Profitable" : "Running at a loss"}
-              onClick={() => openDetail("revenue")} />
+            <StatCard icon={Warehouse} label="Cost of Purchase" value={formatNaira(data.totalInventoryCost)} accent="bg-brand-600" sub="Current stock value" onClick={() => openDetail("costOfPurchase")} />
+            <StatCard icon={TrendingDown} label="Net Expenses" value={formatNaira(data.netExpenses)} accent="bg-red-500" onClick={() => openDetail("netExpenses")} />
+            <StatCard icon={DollarSign} label="Gross Profit" value={formatNaira(data.grossProfit)}
+              accent={data.grossProfit >= 0 ? "bg-green-500" : "bg-red-500"}
+              sub="Revenue minus cost of goods"
+              onClick={() => openDetail("profit")} />
+            <StatCard icon={DollarSign} label="Net Profit" value={formatNaira(data.netProfit)}
+              accent={data.netProfit >= 0 ? "bg-green-600" : "bg-red-600"}
+              sub={data.netProfit >= 0 ? "After all expenses" : "Running at a loss"}
+              onClick={() => openDetail("profit")} />
             <StatCard icon={AlertTriangle} label="Low Stock" value={lowStock.length} accent="bg-orange-400" onClick={() => openDetail("lowStock")} />
           </div>
 
+          {/* Revenue vs Expenses chart */}
           <div className="grid lg:grid-cols-3 gap-4 mb-4">
             <div className="lg:col-span-2 bg-white rounded-xl border border-brand-50 shadow-card p-5">
               <h3 className="font-display text-sm font-semibold text-brand-700 mb-4">
-                Revenue vs Expenses {data.groupBy === "month" ? "(monthly)" : "(daily)"}
+                Revenue vs Net Expenses {data.groupBy === "month" ? "(monthly)" : "(daily)"}
               </h3>
               {data.dailyBreakdown.length === 0 ? (
                 <p className="text-sm text-brand-300 py-10 text-center">No data in this period yet.</p>
@@ -228,14 +250,15 @@ export default function Analytics() {
                     <Tooltip formatter={(v) => formatNaira(v)} contentStyle={{ borderRadius: 8, border: "1px solid #E6EEF2", fontSize: 12 }} />
                     <Legend />
                     <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#FF8C42" strokeWidth={2.5} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="expenses" name="Expenses" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="4 2" />
+                    <Line type="monotone" dataKey="expenses" name="Net Expenses" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="4 2" />
+                    <Line type="monotone" dataKey="profit" name="Profit" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="6 2" />
                   </LineChart>
                 </ResponsiveContainer>
               )}
             </div>
 
             <div className="bg-white rounded-xl border border-brand-50 shadow-card p-5">
-              <h3 className="font-display text-sm font-semibold text-brand-700 mb-4">Expenses by category</h3>
+              <h3 className="font-display text-sm font-semibold text-brand-700 mb-4">Net Expenses by category</h3>
               {data.expensesByCategory.length === 0 ? (
                 <p className="text-sm text-brand-300 py-10 text-center">No expenses in this period.</p>
               ) : (
@@ -251,6 +274,7 @@ export default function Analytics() {
             </div>
           </div>
 
+          {/* Top products */}
           <div className="bg-white rounded-xl border border-brand-50 shadow-card p-5">
             <h3 className="font-display text-sm font-semibold text-brand-700 mb-4">Top products by revenue</h3>
             {data.topProducts.length === 0 ? (
@@ -261,8 +285,10 @@ export default function Analytics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#E6EEF2" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11, fill: "#6696B2" }} tickLine={false} axisLine={{ stroke: "#CCDCE5" }} tickFormatter={formatAxis} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#01283A" }} tickLine={false} axisLine={false} width={120} />
-                  <Tooltip formatter={(v) => formatNaira(v)} contentStyle={{ borderRadius: 8, border: "1px solid #E6EEF2", fontSize: 12 }} />
-                  <Bar dataKey="revenue" fill="#014260" radius={[0, 4, 4, 0]} />
+                  <Tooltip formatter={(v, name) => [formatNaira(v), name]} contentStyle={{ borderRadius: 8, border: "1px solid #E6EEF2", fontSize: 12 }} />
+                  <Legend />
+                  <Bar dataKey="revenue" name="Revenue" fill="#014260" radius={[0, 3, 3, 0]} />
+                  <Bar dataKey="profit" name="Profit" fill="#22c55e" radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -270,7 +296,7 @@ export default function Analytics() {
         </>
       )}
 
-      {/* Drill-down Detail Modal with download */}
+      {/* Detail Modal with Download */}
       <Modal open={!!detailModal} onClose={() => setDetailModal(null)} title={detailModal ? DETAIL_TITLES[detailModal.type] : ""}>
         {detailLoading ? (
           <div className="flex items-center justify-center py-10 text-brand-300">
@@ -292,32 +318,56 @@ export default function Analytics() {
               <p className="text-sm text-brand-300 text-center py-6">Nothing to show for this period.</p>
             ) : (
               <div className="max-h-72 overflow-y-auto space-y-2.5">
-                {detailModal?.type === "lowStock"
-                  ? detailModal.items.map((p) => (
-                      <div key={p.productId} className="flex items-center justify-between text-sm border-b border-brand-50 pb-2 last:border-0">
-                        <span className="text-brand-700">{p.name}</span>
-                        <span className="text-copper-600 font-mono text-xs">{p.quantity} left (min {p.lowStockThreshold})</span>
+                {detailModal?.type === "lowStock" && detailModal.items.map((p) => (
+                  <div key={p.productId} className="flex items-center justify-between text-sm border-b border-brand-50 pb-2 last:border-0">
+                    <span className="text-brand-700">{p.name}</span>
+                    <span className="text-copper-600 font-mono text-xs">{p.quantity} left (min {p.lowStockThreshold})</span>
+                  </div>
+                ))}
+                {detailModal?.type === "netExpenses" && detailModal.items.map((e) => (
+                  <div key={e.expenseId} className="flex items-center justify-between text-sm border-b border-brand-50 pb-2 last:border-0">
+                    <div>
+                      <span className="text-brand-700">{e.title}</span>
+                      <p className="text-[11px] text-brand-300">{e.category} · {e.date}</p>
+                    </div>
+                    <span className="text-red-500 font-mono text-xs font-medium">{formatNaira(e.amount)}</span>
+                  </div>
+                ))}
+                {detailModal?.type === "costOfPurchase" && detailModal.items.map((p) => (
+                  <div key={p.productId} className="flex items-center justify-between text-sm border-b border-brand-50 pb-2 last:border-0">
+                    <div>
+                      <span className="text-brand-700">{p.name}</span>
+                      <p className="text-[11px] text-brand-300">{p.category}</p>
+                    </div>
+                    <span className="text-brand-600 font-mono text-xs">
+                      {p.quantity} × {formatNaira(p.purchasePrice)} = {formatNaira((p.purchasePrice || 0) * p.quantity)}
+                    </span>
+                  </div>
+                ))}
+                {(detailModal?.type === "revenue" || detailModal?.type === "unitsSold" || detailModal?.type === "profit") &&
+                  detailModal.items.map((t) => (
+                    <div key={t.transactionId} className="flex items-center justify-between text-sm border-b border-brand-50 pb-2 last:border-0">
+                      <div>
+                        <span className="text-brand-700">{t.productName}</span>
+                        <p className="text-[11px] text-brand-300">{new Date(t.timestamp).toLocaleString("en-NG")}</p>
                       </div>
-                    ))
-                  : detailModal?.type === "expenses"
-                  ? detailModal.items.map((e) => (
-                      <div key={e.expenseId} className="flex items-center justify-between text-sm border-b border-brand-50 pb-2 last:border-0">
-                        <div>
-                          <span className="text-brand-700">{e.title}</span>
-                          <p className="text-[11px] text-brand-300">{e.category} &middot; {e.date}</p>
-                        </div>
-                        <span className="text-red-500 font-mono text-xs font-medium">{formatNaira(e.amount)}</span>
+                      <div className="text-right">
+                        <p className="text-brand-600 font-mono text-xs">{t.quantity} × {formatNaira(t.unitPrice)}</p>
+                        {detailModal.type === "profit" && (
+                          <p className="text-green-600 font-mono text-xs">profit: {formatNaira(t.profit)}</p>
+                        )}
                       </div>
-                    ))
-                  : detailModal?.items.map((t) => (
-                      <div key={t.transactionId} className="flex items-center justify-between text-sm border-b border-brand-50 pb-2 last:border-0">
-                        <div>
-                          <span className="text-brand-700">{t.productName}</span>
-                          <p className="text-[11px] text-brand-300">{new Date(t.timestamp).toLocaleString("en-NG")}</p>
-                        </div>
-                        <span className="text-brand-600 font-mono text-xs">{t.quantity} units &middot; {formatNaira(t.total)}</span>
-                      </div>
-                    ))}
+                    </div>
+                  ))}
+                {detailModal?.type === "unitsRestocked" && detailModal.items.map((t) => (
+                  <div key={t.transactionId} className="flex items-center justify-between text-sm border-b border-brand-50 pb-2 last:border-0">
+                    <div>
+                      <span className="text-brand-700">{t.productName}</span>
+                      <p className="text-[11px] text-brand-300">{new Date(t.timestamp).toLocaleString("en-NG")}</p>
+                    </div>
+                    <span className="text-brand-600 font-mono text-xs">{t.quantity} units</span>
+                  </div>
+                ))}
               </div>
             )}
           </>

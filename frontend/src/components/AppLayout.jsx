@@ -4,21 +4,29 @@ import { useAuth } from "../context/AuthContext";
 import logo from "../assets/logo.png";
 import {
   LayoutDashboard, LayoutGrid, BarChart3, History,
-  LogOut, Menu, X, ShieldCheck, Tag, UserCircle, Receipt,
+  LogOut, Menu, X, ShieldCheck, Tag, UserCircle,
+  Receipt, ShoppingCart,
 } from "lucide-react";
 import { useState } from "react";
 
-const baseNavItems = [
+// Admin & Manager see everything
+const fullNavItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/pos", label: "Point of Sale", icon: ShoppingCart },
   { to: "/inventory", label: "Inventory", icon: LayoutGrid },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/expenses", label: "Expenses", icon: Receipt },
+  { to: "/expenses", label: "Net Expenses", icon: Receipt },
   { to: "/activity", label: "Activity Log", icon: History },
   { to: "/categories", label: "Categories", icon: Tag },
 ];
 
-const adminNavItems = [
+const adminOnly = [
   { to: "/users", label: "Users & Roles", icon: ShieldCheck },
+];
+
+// Staff see only POS
+const staffNavItems = [
+  { to: "/pos", label: "Point of Sale", icon: ShoppingCart, end: true },
 ];
 
 export default function AppLayout() {
@@ -26,33 +34,30 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const navItems = user?.role === "admin"
-    ? [...baseNavItems, ...adminNavItems]
-    : baseNavItems;
+  const isStaff = user?.role === "staff";
+  const isAdmin = user?.role === "admin";
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
+  const navItems = isStaff
+    ? staffNavItems
+    : isAdmin
+    ? [...fullNavItems, ...adminOnly]
+    : fullNavItems; // manager
+
+  const handleLogout = () => { logout(); navigate("/login"); };
 
   const SidebarContent = () => (
     <>
-      <div className="flex items-center gap-2.5 px-5 py-6 border-b border-brand-50">
+      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-brand-50">
         <img src={logo} alt="ImEx-Tek" className="h-9 w-auto" />
       </div>
 
       <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
         {navItems.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            onClick={() => setMobileOpen(false)}
+          <NavLink key={to} to={to} end={end} onClick={() => setMobileOpen(false)}
             className={({ isActive }) =>
               "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors " +
               (isActive ? "bg-brand-500 text-white" : "text-brand-600 hover:bg-brand-50")
-            }
-          >
+            }>
             <Icon size={17} />
             {label}
           </NavLink>
@@ -65,18 +70,17 @@ export default function AppLayout() {
             "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors mb-1 " +
             (isActive ? "bg-brand-500 text-white" : "text-brand-600 hover:bg-brand-50")
           }>
-          {user?.avatar ? (
-            <img src={user.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
-          ) : (
-            <UserCircle size={17} />
-          )}
+          {user?.avatar
+            ? <img src={user.avatar} alt="" className="w-[17px] h-[17px] rounded-full object-cover" />
+            : <UserCircle size={17} />}
           My Profile
         </NavLink>
         <div className="flex items-center gap-2.5 px-3 py-1.5 mb-1">
           {user?.avatar
             ? <img src={user.avatar} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
-            : <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center shrink-0"><UserCircle size={16} className="text-brand-400" /></div>
-          }
+            : <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                <UserCircle size={16} className="text-brand-400" />
+              </div>}
           <div className="min-w-0">
             <p className="text-sm font-medium text-brand-700 truncate">{user?.name || user?.email}</p>
             <p className="text-xs text-brand-300 capitalize">{user?.role}</p>
@@ -85,8 +89,7 @@ export default function AppLayout() {
         <button onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                      text-brand-500 hover:bg-red-50 hover:text-red-600 transition-colors">
-          <LogOut size={17} />
-          Sign out
+          <LogOut size={17} /> Sign out
         </button>
       </div>
     </>
@@ -102,8 +105,9 @@ export default function AppLayout() {
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-black/30" onClick={() => setMobileOpen(false)} />
           <aside className="absolute left-0 top-0 h-full w-64 bg-white flex flex-col shadow-xl">
-            <button onClick={() => setMobileOpen(false)}
-              className="absolute right-3 top-5 text-brand-400"><X size={20} /></button>
+            <button onClick={() => setMobileOpen(false)} className="absolute right-3 top-5 text-brand-400">
+              <X size={20} />
+            </button>
             <SidebarContent />
           </aside>
         </div>

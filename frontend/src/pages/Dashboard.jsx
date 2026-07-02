@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import {
   TrendingUp, Package, ShoppingCart, AlertTriangle,
   ArrowDownCircle, ArrowUpCircle, Loader2, ArrowRight,
-  TrendingDown, DollarSign,
+  TrendingDown, DollarSign, Warehouse,
 } from "lucide-react";
 
 const formatNaira = (n) =>
@@ -63,9 +63,7 @@ export default function Dashboard() {
         <h1 className="font-display text-2xl font-semibold text-brand-700">
           {greeting}, {user?.name?.split(" ")[0] || "there"} 👋
         </h1>
-        <p className="text-sm text-brand-300 mt-0.5">
-          Here's what's happening at ImEx-Tek today.
-        </p>
+        <p className="text-sm text-brand-300 mt-0.5">Here's what's happening at ImEx-Tek today.</p>
       </div>
 
       {loading ? (
@@ -74,19 +72,22 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
             <StatCard icon={TrendingUp} label="Today's Revenue" value={formatNaira(summary?.totalRevenue)} accent="bg-brand-500" sub="From sales today" />
             <StatCard icon={ShoppingCart} label="Units Sold Today" value={summary?.unitsSold || 0} accent="bg-copper-500" />
-            <StatCard icon={Package} label="Units Restocked" value={summary?.unitsRestocked || 0} accent="bg-brand-400" sub="Today" />
-            <StatCard icon={TrendingDown} label="Today's Expenses" value={formatNaira(summary?.totalExpenses)} accent="bg-red-500" />
+            <StatCard icon={TrendingDown} label="Net Expenses" value={formatNaira(summary?.netExpenses)} accent="bg-red-500" sub="Today" />
             <StatCard
               icon={DollarSign}
               label="Net Profit Today"
               value={formatNaira(summary?.netProfit)}
               accent={(summary?.netProfit || 0) >= 0 ? "bg-green-500" : "bg-red-500"}
-              sub={(summary?.netProfit || 0) >= 0 ? "Profitable" : "Running at a loss"}
+              sub={(summary?.netProfit || 0) >= 0 ? "Profitable" : "Loss today"}
             />
-            <StatCard icon={AlertTriangle} label="Low Stock Items" value={lowStock.length} accent={lowStock.length > 0 ? "bg-orange-400" : "bg-green-500"} sub={lowStock.length === 0 ? "All good" : "Needs attention"} />
+            <StatCard icon={Package} label="Units Restocked" value={summary?.unitsRestocked || 0} accent="bg-brand-400" sub="Today" />
+            <StatCard icon={Warehouse} label="Cost of Purchase" value={formatNaira(summary?.totalInventoryCost)} accent="bg-brand-600" sub="Current stock value" />
+            <StatCard icon={AlertTriangle} label="Low Stock Items" value={lowStock.length}
+              accent={lowStock.length > 0 ? "bg-orange-400" : "bg-green-500"}
+              sub={lowStock.length === 0 ? "All good" : "Needs attention"} />
           </div>
 
           <div className="grid lg:grid-cols-3 gap-4">
@@ -94,7 +95,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-between px-5 py-4 border-b border-brand-50">
                 <h3 className="font-display text-sm font-semibold text-brand-700">Recent Activity</h3>
                 <button onClick={() => navigate("/activity")}
-                  className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-600 transition-colors">
+                  className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-600">
                   View all <ArrowRight size={13} />
                 </button>
               </div>
@@ -104,7 +105,8 @@ export default function Dashboard() {
                 <div className="divide-y divide-brand-50">
                   {recentActivity.map((t) => (
                     <div key={t.transactionId} className="flex items-center gap-3 px-5 py-3">
-                      <div className={"w-8 h-8 rounded-full flex items-center justify-center shrink-0 " + (t.type === "sale" ? "bg-brand-50" : "bg-copper-50")}>
+                      <div className={"w-8 h-8 rounded-full flex items-center justify-center shrink-0 " +
+                        (t.type === "sale" ? "bg-brand-50" : "bg-copper-50")}>
                         {t.type === "sale"
                           ? <ArrowDownCircle size={15} className="text-brand-500" />
                           : <ArrowUpCircle size={15} className="text-copper-500" />}
@@ -113,7 +115,9 @@ export default function Dashboard() {
                         <p className="text-sm text-brand-700 truncate">
                           {t.type === "sale" ? "Sold" : "Restocked"} {t.quantity} of {t.productName}
                         </p>
-                        <p className="text-xs text-brand-300">{new Date(t.timestamp).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" })}</p>
+                        <p className="text-xs text-brand-300">
+                          {new Date(t.timestamp).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" })}
+                        </p>
                       </div>
                       <span className={"text-xs font-mono font-medium " + (t.type === "sale" ? "text-brand-600" : "text-copper-600")}>
                         {t.type === "sale" ? "+" : "-"}{formatNaira(t.total)}
@@ -128,12 +132,12 @@ export default function Dashboard() {
               <div className="flex items-center justify-between px-5 py-4 border-b border-brand-50">
                 <h3 className="font-display text-sm font-semibold text-brand-700">Low Stock Alerts</h3>
                 <button onClick={() => navigate("/inventory")}
-                  className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-600 transition-colors">
+                  className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-600">
                   View all <ArrowRight size={13} />
                 </button>
               </div>
               {lowStock.length === 0 ? (
-                <p className="text-sm text-brand-300 text-center py-10">All products are well stocked.</p>
+                <p className="text-sm text-brand-300 text-center py-10">All products well stocked.</p>
               ) : (
                 <div className="divide-y divide-brand-50">
                   {lowStock.map((p) => (
