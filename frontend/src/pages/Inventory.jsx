@@ -1,14 +1,16 @@
 // src/pages/Inventory.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import api from "../api/client";
 import Modal from "../components/Modal";
 import ExportMenu from "../components/ExportMenu";
 import BulkUpload from "../components/BulkUpload";
 import ProductForm from "../components/ProductForm";
+import ScanModeToggle from "../components/ScanModeToggle";
+import useBarcodeScanner from "../hooks/useBarcodeScanner";
 import { useAuth } from "../context/AuthContext";
 import {
   Plus, PackagePlus, AlertTriangle, Search,
-  Loader2, Pencil, Trash2, Upload,
+  Loader2, Pencil, Trash2, Upload, BookOpen,
 } from "lucide-react";
 
 const formatNaira = (n) =>
@@ -31,6 +33,10 @@ export default function Inventory() {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
   const [newProduct, setNewProduct] = useState(EMPTY);
+  const [restockScanMode, setRestockScanMode] = useState(false);
+  const [restockScanFeedback, setRestockScanFeedback] = useState(null);
+  const [catalogueOpen, setCatalogueOpen] = useState(false);
+  const [catalogueItems, setCatalogueItems] = useState([]);
 
   const loadData = async () => {
     setLoading(true);
@@ -50,10 +56,47 @@ export default function Inventory() {
 
   useEffect(() => { loadData(); }, []);
 
+  const openCatalogue = async () => {
+    try {
+      const res = await api.get("/master-catalogue");
+      setCatalogueItems(res.data);
+      setCatalogueOpen(true);
+    } catch { showToast("Could not load master catalogue.", "error"); }
+  };
+
+  const addFromCatalogue = (item) => {
+    setNewProduct({
+      name: item.name,
+      category: item.category || "",
+      quantity: "",
+      purchasePrice: item.defaultPurchasePrice || "",
+      sellingPrice: item.defaultSellingPrice || "",
+      lowStockThreshold: "5",
+    });
+    setCatalogueOpen(false);
+    setAddOpen(true);
+  };
+
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
+
+  // Barcode scan for restock modal
+  const handleRestockScan = useCallback(async (barcode) => {
+    if (!restockScanMode || !restockModal) return;
+    try {
+      const res = await api.get(`/products/barcode/${encodeURIComponent(barcode)}`);
+      addToRestock(res.data);
+      setRestockScanFeedback({ message: `Added: ${res.data.name}`, type: "success" });
+      setTimeout(() => setRestockScanFeedback(null), 1500);
+    } catch (err) {
+      setRestockScanFeedback({ message: `Barcode not found: ${barcode}`, type: "error" });
+      setTimeout(() => setRestockScanFeedback(null), 2000);
+    }
+  }, [restockScanMode, restockModal]);
+
+  useBarcodeScanner(handleRestockScan, restockScanMode && !!restockModal);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -215,6 +258,11 @@ export default function Inventory() {
             ]}
             rows={products}
           />
+          <button onClick={openCatalogue}
+            className="flex items-center gap-2 border border-brand-100 hover:border-brand-300 text-brand-600
+                       text-sm font-medium rounded-lg px-3.5 py-2 transition-colors">
+            <BookOpen size={15} /> From Catalogue
+          </button>
           <button onClick={() => setRestockModal(true)}
             className="flex items-center gap-2 border border-brand-100 hover:border-brand-300 text-brand-600
                        text-sm font-medium rounded-lg px-3.5 py-2 transition-colors">
@@ -363,9 +411,19 @@ export default function Inventory() {
       </Modal>
 
       {/* Multi-item Restock Modal */}
-      <Modal open={!!restockModal} onClose={() => { setRestockModal(false); setRestockItems([]); }} title="Restock products">
+      <Modal open={!!restockModal} onClose={() => { setRestockModal(false); setRestockItems([]); setRestockScanMode(false); }} title="Restock products">
         <div className="space-y-3">
-          <p className="text-sm text-brand-400">Select products from the inventory table to add them here, or search below.</p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-brand-400">Select products to restock or use your scanner.</p>
+            <ScanModeToggle enabled={restockScanMode} onToggle={() => setRestockScanMode((s) => !s)} />
+          </div>
+
+          {restockScanFeedback && (
+            <div className={"rounded-lg px-3 py-2 text-sm font-medium " +
+              (restockScanFeedback.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700")}>
+              {restockScanFeedback.message}
+            </div>
+          )}
           <div className="max-h-52 overflow-y-auto space-y-2 border border-brand-50 rounded-lg p-2">
             {products.map((p) => {
               const item = restockItems.find((r) => r.product.productId === p.productId);
@@ -427,6 +485,30 @@ export default function Inventory() {
 
       {/* Bulk Upload */}
       <BulkUpload open={bulkOpen} onClose={() => setBulkOpen(false)} onSuccess={() => { loadData(); showToast("Products imported successfully."); }} />
+
+      {/* Master Catalogue Picker */}
+      <Modal open={catalogueOpen} onClose={() => setCatalogueOpen(false)} title="Add from Master Catalogue">
+        <div className="space-y-3">
+          <p className="text-sm text-brand-400">Select a product template to add to your branch inventory. You can adjust the price after selecting.</p>
+          <div className="max-h-72 overflow-y-auto space-y-1">
+            {catalogueItems.length === 0 ? (
+              <p className="text-sm text-brand-300 text-center py-8">Master catalogue is empty.</p>
+            ) : catalogueItems.map((item) => (
+              <button key={item.catalogueId} onClick={() => addFromCatalogue(item)}
+                className="w-full text-left flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-brand-50 transition-colors">
+                <div>
+                  <p className="text-sm font-medium text-brand-700">{item.name}</p>
+                  <p className="text-xs text-brand-300">{item.category}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-brand-500 font-mono">Buy: ₦{(item.defaultPurchasePrice || 0).toLocaleString()}</p>
+                  <p className="text-xs text-brand-600 font-mono">Sell: ₦{(item.defaultSellingPrice || 0).toLocaleString()}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Modal>
 
       {toast && (
         <div className={"fixed bottom-5 right-5 px-4 py-3 rounded-lg shadow-lg text-sm font-medium text-white " +

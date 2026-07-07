@@ -36,6 +36,9 @@ export default {
         card: "0 1px 3px rgba(1, 66, 96, 0.08), 0 1px 2px rgba(1, 66, 96, 0.06)",
         cardHover: "0 4px 12px rgba(1, 66, 96, 0.12)",
       },
+      animation: {
+        "pulse-slow": "pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+      },
     },
   },
   plugins: [],

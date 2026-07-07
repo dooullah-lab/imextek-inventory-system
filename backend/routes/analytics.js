@@ -33,7 +33,7 @@ function resolveRange(range, from, to) {
 
 router.get("/summary", requireAuth, async (req, res) => {
   try {
-    const { range = "month", from, to, group } = req.query;
+    const { range = "month", from, to, group, branchId } = req.query;
     const { start, end } = resolveRange(range, from, to);
 
     const [txResult, expResult, prodResult] = await Promise.all([
@@ -42,9 +42,18 @@ router.get("/summary", requireAuth, async (req, res) => {
       ddbDocClient.send(new ScanCommand({ TableName: TABLES.PRODUCTS })),
     ]);
 
-    const allTx = txResult.Items || [];
-    const allExp = expResult.Items || [];
-    const allProducts = prodResult.Items || [];
+    let allTx = txResult.Items || [];
+    let allExp = expResult.Items || [];
+    let allProducts = prodResult.Items || [];
+
+    // Filter by branch if specified (admin filtering by a specific branch)
+    // Also filter by user's branch if not admin
+    const effectiveBranchId = branchId || (req.user.role !== "admin" ? req.user.branchId : null);
+    if (effectiveBranchId) {
+      allTx = allTx.filter((t) => t.branchId === effectiveBranchId);
+      allExp = allExp.filter((e) => e.branchId === effectiveBranchId);
+      allProducts = allProducts.filter((p) => p.branchId === effectiveBranchId);
+    }
 
     const inRange = allTx.filter((t) => {
       const ts = new Date(t.timestamp);
@@ -186,7 +195,13 @@ router.get("/details", requireAuth, async (req, res) => {
 router.get("/low-stock", requireAuth, async (req, res) => {
   try {
     const result = await ddbDocClient.send(new ScanCommand({ TableName: TABLES.PRODUCTS }));
-    const lowStock = (result.Items || []).filter((p) => p.quantity <= p.lowStockThreshold);
+    let products = result.Items || [];
+    if (req.user.role !== "admin") {
+      products = products.filter((p) => p.branchId === req.user.branchId);
+    } else if (req.query.branchId) {
+      products = products.filter((p) => p.branchId === req.query.branchId);
+    }
+    const lowStock = products.filter((p) => p.quantity <= p.lowStockThreshold);
     res.json(lowStock);
   } catch (err) {
     res.status(500).json({ error: "Could not check low stock items." });
@@ -194,3 +209,75 @@ router.get("/low-stock", requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
+// GET /analytics/branch-comparison — admin only, all branches side by side
+router.get("/branch-comparison", requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") return res.status(403).json({ error: "Admin only." });
+
+    const { range = "month", from, to } = req.query;
+    const { start, end } = resolveRange(range, from, to);
+
+    const [txResult, expResult, prodResult, branchResult] = await Promise.all([
+      ddbDocClient.send(new ScanCommand({ TableName: TABLES.TRANSACTIONS })),
+      ddbDocClient.send(new ScanCommand({ TableName: TABLES.EXPENSES })),
+      ddbDocClient.send(new ScanCommand({ TableName: TABLES.PRODUCTS })),
+      ddbDocClient.send(new ScanCommand({ TableName: TABLES.BRANCHES })),
+    ]);
+
+    const branches = (branchResult.Items || []).filter((b) => b.status === "active");
+    const allTx = (txResult.Items || []).filter((t) => {
+      const ts = new Date(t.timestamp);
+      return ts >= start && ts <= end;
+    });
+    const allExp = (expResult.Items || []).filter((e) => {
+      const ts = new Date(e.timestamp);
+      return ts >= start && ts <= end;
+    });
+    const allProd = prodResult.Items || [];
+
+    const comparison = branches.map((branch) => {
+      const branchTx = allTx.filter((t) => t.branchId === branch.branchId);
+      const branchExp = allExp.filter((e) => e.branchId === branch.branchId);
+      const branchProd = allProd.filter((p) => p.branchId === branch.branchId);
+
+      const sales = branchTx.filter((t) => t.type === "sale");
+      const totalRevenue = sales.reduce((s, t) => s + (t.total || 0), 0);
+      const totalCostOfGoods = sales.reduce((s, t) => s + (t.costOfGoods || 0), 0);
+      const operatingExpenses = branchExp.reduce((s, e) => s + (e.amount || 0), 0);
+      const grossProfit = totalRevenue - totalCostOfGoods;
+      const netProfit = grossProfit - operatingExpenses;
+      const unitsSold = sales.reduce((s, t) => s + t.quantity, 0);
+      const lowStockCount = branchProd.filter((p) => p.quantity <= p.lowStockThreshold).length;
+
+      return {
+        branchId: branch.branchId,
+        branchName: branch.name,
+        location: branch.location || "",
+        totalRevenue, totalCostOfGoods,
+        grossProfit, operatingExpenses, netProfit,
+        unitsSold, productCount: branchProd.length, lowStockCount,
+      };
+    });
+
+    // Sort by net profit descending
+    comparison.sort((a, b) => b.netProfit - a.netProfit);
+
+    // Totals row
+    const totals = comparison.reduce((acc, b) => ({
+      totalRevenue: acc.totalRevenue + b.totalRevenue,
+      totalCostOfGoods: acc.totalCostOfGoods + b.totalCostOfGoods,
+      grossProfit: acc.grossProfit + b.grossProfit,
+      operatingExpenses: acc.operatingExpenses + b.operatingExpenses,
+      netProfit: acc.netProfit + b.netProfit,
+      unitsSold: acc.unitsSold + b.unitsSold,
+      productCount: acc.productCount + b.productCount,
+      lowStockCount: acc.lowStockCount + b.lowStockCount,
+    }), { totalRevenue: 0, totalCostOfGoods: 0, grossProfit: 0, operatingExpenses: 0, netProfit: 0, unitsSold: 0, productCount: 0, lowStockCount: 0 });
+
+    res.json({ branches: comparison, totals, range });
+  } catch (err) {
+    console.error("Branch comparison error:", err);
+    res.status(500).json({ error: "Could not generate branch comparison." });
+  }
+});

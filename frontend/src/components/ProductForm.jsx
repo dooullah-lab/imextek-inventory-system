@@ -89,6 +89,19 @@ export default function ProductForm({ data, setData, onSubmit, submitLabel, subm
         onChange={(e) => setData({ ...data, lowStockThreshold: e.target.value })}
         className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none"
       />
+      <div>
+        <label className="block text-xs text-brand-400 mb-1">Barcode (optional — scan or type)</label>
+        <input
+          type="text"
+          placeholder="Scan barcode or type manually"
+          value={data.barcode || ""}
+          onChange={(e) => setData({ ...data, barcode: e.target.value })}
+          className="w-full rounded-lg border border-brand-100 px-3 py-2 text-sm focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none font-mono"
+        />
+        <p className="text-[11px] text-brand-300 mt-1">
+          If you have a scanner, click this field and scan the product's barcode
+        </p>
+      </div>
       <button
         disabled={submitting}
         type="submit"

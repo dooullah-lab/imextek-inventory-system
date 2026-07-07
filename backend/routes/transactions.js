@@ -52,6 +52,8 @@ async function recordSingleItem({ productId, type, quantity, userId, groupId }) 
     costOfGoods: purchasePrice * Math.abs(quantity),
     profit: (sellingPrice - purchasePrice) * Math.abs(quantity),
     performedBy: userId,
+    branchId: product.branchId || null,
+    branchName: product.branchName || null,
     timestamp: new Date().toISOString(),
   };
 
@@ -137,6 +139,13 @@ router.get("/", requireAuth, async (req, res) => {
     const result = await ddbDocClient.send(new ScanCommand({ TableName: TABLES.TRANSACTIONS }));
     let items = result.Items || [];
 
+    // Filter by branch unless admin
+    if (req.user.role !== "admin") {
+      items = items.filter((t) => t.branchId === req.user.branchId);
+    } else if (req.query.branchId) {
+      items = items.filter((t) => t.branchId === req.query.branchId);
+    }
+
     if (type && (type === "sale" || type === "restock")) items = items.filter((t) => t.type === type);
     if (search) {
       const q = search.toLowerCase();
@@ -164,3 +173,68 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
+// POST /transactions/sync — batch sync offline sales
+router.post("/sync", requireAuth, async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0)
+      return res.status(400).json({ error: "No items to sync." });
+
+    const results = { synced: 0, failed: [] };
+    const { v4: uuidv4Local } = require("uuid");
+    const { GetCommand: GetCmd, UpdateCommand: UpdateCmd, PutCommand: PutCmd } = require("@aws-sdk/lib-dynamodb");
+
+    for (const sale of items) {
+      try {
+        const productResult = await ddbDocClient.send(
+          new GetCommand({ TableName: TABLES.PRODUCTS, Key: { productId: sale.productId } })
+        );
+        const product = productResult.Item;
+        if (!product) { results.failed.push(sale.productId); continue; }
+
+        const qty = Number(sale.quantity);
+        const newQty = Math.max(0, product.quantity - qty);
+
+        await ddbDocClient.send(new UpdateCommand({
+          TableName: TABLES.PRODUCTS,
+          Key: { productId: sale.productId },
+          UpdateExpression: "SET quantity = :q, updatedAt = :u",
+          ExpressionAttributeValues: { ":q": newQty, ":u": new Date().toISOString() },
+        }));
+
+        const sellingPrice = product.sellingPrice || product.price || 0;
+        const purchasePrice = product.purchasePrice || 0;
+
+        await ddbDocClient.send(new PutCommand({
+          TableName: TABLES.TRANSACTIONS,
+          Item: {
+            transactionId: sale.offlineId || uuidv4Local(),
+            groupId: sale.groupId || null,
+            productId: sale.productId,
+            productName: product.name,
+            type: "sale",
+            quantity: qty,
+            unitPrice: sellingPrice,
+            purchasePrice,
+            total: sellingPrice * qty,
+            costOfGoods: purchasePrice * qty,
+            profit: (sellingPrice - purchasePrice) * qty,
+            performedBy: req.user.userId,
+            branchId: product.branchId || null,
+            branchName: product.branchName || null,
+            syncedAt: new Date().toISOString(),
+            timestamp: sale.timestamp || new Date().toISOString(),
+          },
+        }));
+        results.synced++;
+      } catch (err) {
+        results.failed.push(sale.productId);
+      }
+    }
+    res.json(results);
+  } catch (err) {
+    console.error("Sync error:", err);
+    res.status(500).json({ error: "Sync failed." });
+  }
+});

@@ -9,6 +9,8 @@ const transactionRoutes = require("./routes/transactions");
 const analyticsRoutes = require("./routes/analytics");
 const categoryRoutes = require("./routes/categories");
 const expenseRoutes = require("./routes/expenses");
+const branchRoutes = require("./routes/branches");
+const masterCatalogueRoutes = require("./routes/masterCatalogue");
 
 const app = express();
 
@@ -26,6 +28,8 @@ app.use("/transactions", transactionRoutes);
 app.use("/analytics", analyticsRoutes);
 app.use("/categories", categoryRoutes);
 app.use("/expenses", expenseRoutes);
+app.use("/branches", branchRoutes);
+app.use("/master-catalogue", masterCatalogueRoutes);
 
 // Catch-all for unknown routes
 app.use((req, res) => {

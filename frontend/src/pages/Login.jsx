@@ -7,20 +7,19 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function Login() {
   const { login, loading, error } = useAuth();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const success = await login(email, password);
+    const success = await login(identifier, password);
     if (success) navigate("/");
   };
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-canvas relative overflow-hidden px-4">
-      {/* Ambient background shapes - quiet, not distracting */}
       <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-brand-100 opacity-40 blur-3xl" />
       <div className="absolute -bottom-32 -right-24 w-[28rem] h-[28rem] rounded-full bg-copper-100 opacity-40 blur-3xl" />
 
@@ -39,16 +38,16 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-brand-700 mb-1.5">
-                Email
+              <label htmlFor="identifier" className="block text-sm font-medium text-brand-700 mb-1.5">
+                Email or Username
               </label>
               <input
-                id="email"
-                type="email"
+                id="identifier"
+                type="text"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@imex-tek.com"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="you@imex-tek.com or username"
                 className="w-full rounded-lg border border-brand-100 px-3.5 py-2.5 text-sm
                            focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none
                            transition-colors placeholder:text-brand-200"
@@ -71,12 +70,8 @@ export default function Login() {
                              focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none
                              transition-colors placeholder:text-brand-200"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((s) => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-300 hover:text-brand-500"
-                  tabIndex={-1}
-                >
+                <button type="button" onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-300 hover:text-brand-500" tabIndex={-1}>
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
@@ -88,20 +83,16 @@ export default function Login() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
+            <button type="submit" disabled={loading}
               className="w-full bg-brand-500 hover:bg-brand-600 text-white font-medium rounded-lg
                          py-2.5 text-sm transition-colors flex items-center justify-center gap-2
-                         disabled:opacity-60 disabled:cursor-not-allowed mt-2"
-            >
+                         disabled:opacity-60 disabled:cursor-not-allowed mt-2">
               {loading && <Loader2 size={16} className="animate-spin" />}
               {loading ? "Signing in..." : "Sign in"}
             </button>
 
             <div className="text-center">
-              <Link to="/forgot-password"
-                className="text-xs text-brand-300 hover:text-brand-500 transition-colors">
+              <Link to="/forgot-password" className="text-xs text-brand-300 hover:text-brand-500 transition-colors">
                 Forgot your password?
               </Link>
             </div>

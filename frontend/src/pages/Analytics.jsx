@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import api from "../api/client";
 import Modal from "../components/Modal";
 import ExportMenu from "../components/ExportMenu";
+import { useAuth } from "../context/AuthContext";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, LineChart, Line, Legend,
@@ -112,11 +113,22 @@ export default function Analytics() {
   const [loading, setLoading] = useState(true);
   const [detailModal, setDetailModal] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranch, setSelectedBranch] = useState("");
+
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user?.role === "admin") {
+      api.get("/branches").then((r) => setBranches(r.data.filter((b) => b.status === "active"))).catch(() => {});
+    }
+  }, [user]);
 
   const buildQuery = (r, f, t, g) => {
     let q = "range=" + r;
     if (r === "custom" && f && t) q += "&from=" + f + "&to=" + t;
     if (g) q += "&group=" + g;
+    if (selectedBranch) q += "&branchId=" + selectedBranch;
     return q;
   };
 
@@ -137,7 +149,7 @@ export default function Analytics() {
     }
   };
 
-  useEffect(() => { load(range, customFrom, customTo, groupBy); }, [range, groupBy]);
+  useEffect(() => { load(range, customFrom, customTo, groupBy); }, [range, groupBy, selectedBranch]);
 
   const openDetail = async (type) => {
     setDetailModal({ type, items: [] });
@@ -164,18 +176,27 @@ export default function Analytics() {
             <h1 className="font-display text-2xl font-semibold text-brand-700">Analytics</h1>
             <p className="text-sm text-brand-300 mt-0.5">Revenue, cost, net expenses, and profit overview</p>
           </div>
-          <ExportMenu
-            filename="imextek-analytics"
-            title="ImEx-Tek Analytics"
-            columns={[
-              { key: "date", label: "Period" },
-              { key: "revenue", label: "Revenue (NGN)" },
-              { key: "costOfGoods", label: "Cost of Goods (NGN)" },
-              { key: "expenses", label: "Operating Expenses (NGN)" },
-              { key: "profit", label: "Profit (NGN)" },
-            ]}
-            rows={data?.dailyBreakdown || []}
-          />
+          <div className="flex items-center gap-2 flex-wrap">
+            {user?.role === "admin" && branches.length > 0 && (
+              <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}
+                className="text-sm border border-brand-100 rounded-lg px-3 py-2 text-brand-600 bg-white outline-none focus:border-brand-400">
+                <option value="">All Branches</option>
+                {branches.map((b) => <option key={b.branchId} value={b.branchId}>{b.name}</option>)}
+              </select>
+            )}
+            <ExportMenu
+              filename="imextek-analytics"
+              title="ImEx-Tek Analytics"
+              columns={[
+                { key: "date", label: "Period" },
+                { key: "revenue", label: "Revenue (NGN)" },
+                { key: "costOfGoods", label: "Cost of Goods (NGN)" },
+                { key: "expenses", label: "Operating Expenses (NGN)" },
+                { key: "profit", label: "Profit (NGN)" },
+              ]}
+              rows={data?.dailyBreakdown || []}
+            />
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

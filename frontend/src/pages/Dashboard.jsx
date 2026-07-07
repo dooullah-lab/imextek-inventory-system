@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import {
   TrendingUp, Package, ShoppingCart, AlertTriangle,
   ArrowDownCircle, ArrowUpCircle, Loader2, ArrowRight,
-  TrendingDown, Warehouse,
+  TrendingDown, Warehouse, WifiOff,
 } from "lucide-react";
 
 function NairaIcon({ size = 17, className = "" }) {
@@ -38,27 +38,43 @@ export default function Dashboard() {
   const [recentActivity, setRecentActivity] = useState([]);
   const [lowStock, setLowStock] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranch, setSelectedBranch] = useState("");
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const up = () => setIsOnline(true);
+    const down = () => setIsOnline(false);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => { window.removeEventListener("online", up); window.removeEventListener("offline", down); };
+  }, []);
+
+  useEffect(() => {
+    if (user?.role === "admin") {
+      api.get("/branches").then((r) => setBranches(r.data.filter((b) => b.status === "active"))).catch(() => {});
+    }
+  }, [user]);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
+        const branchQuery = selectedBranch ? `&branchId=${selectedBranch}` : "";
+        const txQuery = selectedBranch ? `?branchId=${selectedBranch}&sort=newest` : "?sort=newest";
         const [summaryRes, activityRes, lowStockRes] = await Promise.all([
-          api.get("/analytics/summary?range=today"),
-          api.get("/transactions?sort=newest"),
-          api.get("/analytics/low-stock"),
+          api.get(`/analytics/summary?range=today${branchQuery}`),
+          api.get(`/transactions${txQuery}`),
+          api.get(`/analytics/low-stock`),
         ]);
         setSummary(summaryRes.data);
         setRecentActivity(activityRes.data.slice(0, 8));
         setLowStock(lowStockRes.data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+      } catch (err) { console.error(err); }
+      finally { setLoading(false); }
     }
     load();
-  }, []);
+  }, [selectedBranch]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -66,10 +82,27 @@ export default function Dashboard() {
   return (
     <div>
       <div className="mb-7">
-        <h1 className="font-display text-2xl font-semibold text-brand-700">
-          {greeting}, {user?.name?.split(" ")[0] || "there"} 👋
-        </h1>
-        <p className="text-sm text-brand-300 mt-0.5">Here's what's happening at ImEx-Tek today.</p>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
+          <div>
+            <h1 className="font-display text-2xl font-semibold text-brand-700">
+              {greeting}, {user?.name?.split(" ")[0] || "there"} 👋
+            </h1>
+            <p className="text-sm text-brand-300 mt-0.5">Here's what's happening at ImEx-Tek today.</p>
+          </div>
+          {user?.role === "admin" && branches.length > 0 && (
+            <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}
+              className="text-sm border border-brand-100 rounded-lg px-3 py-2 text-brand-600 bg-white outline-none focus:border-brand-400 self-start">
+              <option value="">All Branches</option>
+              {branches.map((b) => <option key={b.branchId} value={b.branchId}>{b.name}</option>)}
+            </select>
+          )}
+        </div>
+        {!isOnline && (
+          <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2.5 text-sm text-orange-700">
+            <WifiOff size={15} className="shrink-0" />
+            You are offline. Data shown may not be up to date. POS sales will sync when connection returns.
+          </div>
+        )}
       </div>
 
       {loading ? (

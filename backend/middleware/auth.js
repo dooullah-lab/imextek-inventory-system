@@ -15,7 +15,7 @@ function requireAuth(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { userId, email, role }
+    req.user = decoded; // { userId, email, role, branchId }
     next();
   } catch (err) {
     return res.status(401).json({ error: "Session expired or invalid. Please log in again." });

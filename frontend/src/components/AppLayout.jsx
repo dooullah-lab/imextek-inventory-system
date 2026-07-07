@@ -5,11 +5,10 @@ import logo from "../assets/logo.png";
 import {
   LayoutDashboard, LayoutGrid, BarChart3, History,
   LogOut, Menu, X, ShieldCheck, Tag, UserCircle,
-  Receipt, ShoppingCart, FileText,
+  Receipt, ShoppingCart, FileText, GitBranch, BookOpen,
 } from "lucide-react";
 import { useState } from "react";
 
-// Admin & Manager see everything
 const fullNavItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/pos", label: "Point of Sale", icon: ShoppingCart },
@@ -19,13 +18,17 @@ const fullNavItems = [
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/activity", label: "Activity Log", icon: History },
   { to: "/categories", label: "Categories", icon: Tag },
+  { to: "/users", label: "Users & Roles", icon: ShieldCheck },
+  { to: "/master-catalogue", label: "Master Catalogue", icon: BookOpen },
 ];
 
-const adminOnly = [
+const adminNavItems = [
+  { to: "/branches", label: "Branches", icon: GitBranch },
+  { to: "/branch-comparison", label: "Branch Comparison", icon: BarChart3 },
+  { to: "/master-catalogue", label: "Master Catalogue", icon: BookOpen },
   { to: "/users", label: "Users & Roles", icon: ShieldCheck },
 ];
 
-// Staff see only POS
 const staffNavItems = [
   { to: "/pos", label: "Point of Sale", icon: ShoppingCart, end: true },
 ];
@@ -41,8 +44,8 @@ export default function AppLayout() {
   const navItems = isStaff
     ? staffNavItems
     : isAdmin
-    ? [...fullNavItems, ...adminOnly]
-    : fullNavItems; // manager
+    ? [...fullNavItems, ...adminNavItems]
+    : fullNavItems;
 
   const handleLogout = () => { logout(); navigate("/login"); };
 
@@ -84,7 +87,10 @@ export default function AppLayout() {
               </div>}
           <div className="min-w-0">
             <p className="text-sm font-medium text-brand-700 truncate">{user?.name || user?.email}</p>
-            <p className="text-xs text-brand-300 capitalize">{user?.role}</p>
+            <p className="text-xs text-brand-300 capitalize">
+              {user?.role}
+              {user?.branchName && ` · ${user.branchName}`}
+            </p>
           </div>
         </div>
         <button onClick={handleLogout}

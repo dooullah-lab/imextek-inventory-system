@@ -1,11 +1,11 @@
 // src/pages/POS.jsx
-// The Point of Sale screen — available to ALL roles.
-// Staff see ONLY this page after login.
-// Admin/Manager also have access to everything else.
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import api from "../api/client";
 import Receipt from "../components/Receipt";
-import { ShoppingCart, Plus, Minus, Trash2, Search, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
+import ScanModeToggle from "../components/ScanModeToggle";
+import useBarcodeScanner from "../hooks/useBarcodeScanner";
+import useOfflineQueue from "../hooks/useOfflineQueue";
+import { ShoppingCart, Plus, Minus, Trash2, Search, Loader2, AlertTriangle, CheckCircle, WifiOff, RefreshCw } from "lucide-react";
 
 const formatNaira = (n) =>
   new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n || 0);
@@ -19,6 +19,9 @@ export default function POS() {
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState(null); // multi-item receipt
   const [toast, setToast] = useState(null);
+  const [scanMode, setScanMode] = useState(false);
+  const [scanFeedback, setScanFeedback] = useState(null);
+  const { isOnline, queue, addToQueue, syncQueue, syncing, pendingCount } = useOfflineQueue(); // { message, type }
 
   const load = async () => {
     setLoading(true);
@@ -42,6 +45,28 @@ export default function POS() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  // Called by the barcode scanner hook when a barcode is detected
+  const handleBarcodeScan = useCallback(async (barcode) => {
+    if (!scanMode) return;
+    try {
+      const res = await api.get(`/products/barcode/${encodeURIComponent(barcode)}`);
+      const product = res.data;
+      if (product.quantity === 0) {
+        setScanFeedback({ message: `${product.name} is out of stock`, type: "error" });
+        setTimeout(() => setScanFeedback(null), 2500);
+        return;
+      }
+      addToCart(product);
+      setScanFeedback({ message: `Added: ${product.name}`, type: "success" });
+      setTimeout(() => setScanFeedback(null), 1500);
+    } catch (err) {
+      setScanFeedback({ message: `Barcode not found: ${barcode}`, type: "error" });
+      setTimeout(() => setScanFeedback(null), 2500);
+    }
+  }, [scanMode]);
+
+  useBarcodeScanner(handleBarcodeScan, scanMode);
 
   const filtered = products.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -80,32 +105,98 @@ export default function POS() {
     if (cart.length === 0) return;
     setSubmitting(true);
     try {
-      const items = cart.map((c) => ({
-        productId: c.product.productId,
-        quantity: c.quantity,
-      }));
+      const items = cart.map((c) => ({ productId: c.product.productId, quantity: c.quantity }));
+      const groupId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+
+      if (!isOnline) {
+        // Save to offline queue
+        const entry = addToQueue(items, groupId, cart, cartTotal);
+        setReceipt({ items: [], groupId: entry.offlineId, total: cartTotal, cart, offline: true });
+        setCart([]);
+        showToast("Offline — sale saved locally. Will sync when connected.");
+        return;
+      }
+
       const res = await api.post("/transactions/sale", { items });
       setReceipt({ items: res.data.items, groupId: res.data.groupId, total: cartTotal, cart });
       setCart([]);
       showToast("Sale recorded successfully.");
       load();
     } catch (err) {
-      showToast(err.response?.data?.error || "Could not record sale.", "error");
-    } finally {
-      setSubmitting(false);
-    }
+      // If request failed due to network, save offline
+      if (!navigator.onLine || err.message === "Network Error") {
+        const items = cart.map((c) => ({ productId: c.product.productId, quantity: c.quantity }));
+        const groupId = Date.now().toString();
+        const entry = addToQueue(items, groupId, cart, cartTotal);
+        setReceipt({ items: [], groupId: entry.offlineId, total: cartTotal, cart, offline: true });
+        setCart([]);
+        showToast("Network error — sale saved offline. Will sync when connected.");
+      } else {
+        showToast(err.response?.data?.error || "Could not record sale.", "error");
+      }
+    } finally { setSubmitting(false); }
   };
 
   return (
     <div>
-      <div className="mb-5">
-        <h1 className="font-display text-2xl font-semibold text-brand-700 flex items-center gap-2">
-          <ShoppingCart size={22} className="text-brand-500" /> Point of Sale
-        </h1>
-        <p className="text-sm text-brand-300 mt-0.5">Add items to cart then confirm the sale</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-brand-700 flex items-center gap-2">
+            <ShoppingCart size={22} className="text-brand-500" /> Point of Sale
+          </h1>
+          <p className="text-sm text-brand-300 mt-0.5">Add items to cart then confirm the sale</p>
+        </div>
+        <ScanModeToggle enabled={scanMode} onToggle={() => setScanMode((s) => !s)} />
       </div>
 
-      {/* Low stock banner for staff */}
+      {/* Scan mode feedback banner */}
+      {scanMode && (
+        <div className={"mb-4 rounded-xl px-4 py-3 flex items-center gap-3 transition-all " +
+          (scanFeedback
+            ? scanFeedback.type === "success"
+              ? "bg-green-50 border border-green-100"
+              : "bg-red-50 border border-red-100"
+            : "bg-brand-50 border border-brand-100")}>
+          <div className={"w-2.5 h-2.5 rounded-full shrink-0 " +
+            (scanFeedback
+              ? scanFeedback.type === "success" ? "bg-green-500" : "bg-red-500"
+              : "bg-brand-400 animate-pulse")}>
+          </div>
+          <p className={"text-sm font-medium " +
+            (scanFeedback
+              ? scanFeedback.type === "success" ? "text-green-700" : "text-red-700"
+              : "text-brand-600")}>
+            {scanFeedback
+              ? scanFeedback.message
+              : "Scanner ready — point your scanner at any product barcode"}
+          </p>
+        </div>
+      )}
+
+      {/* Offline banner */}
+      {!isOnline && (
+        <div className="mb-4 bg-orange-50 border border-orange-100 rounded-xl px-4 py-3 flex items-center gap-3">
+          <WifiOff size={16} className="text-orange-500 shrink-0" />
+          <p className="text-sm text-orange-700 flex-1">
+            You are offline. Sales will be saved locally and synced automatically when you reconnect.
+          </p>
+        </div>
+      )}
+
+      {/* Pending sync banner */}
+      {isOnline && pendingCount > 0 && (
+        <div className="mb-4 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center gap-3">
+          <RefreshCw size={16} className={"text-blue-500 shrink-0 " + (syncing ? "animate-spin" : "")} />
+          <p className="text-sm text-blue-700 flex-1">
+            {syncing ? "Syncing offline sales..." : `${pendingCount} offline sale${pendingCount > 1 ? "s" : ""} waiting to sync.`}
+          </p>
+          {!syncing && (
+            <button onClick={syncQueue} className="text-xs font-medium text-blue-600 hover:text-blue-800">
+              Sync now
+            </button>
+          )}
+        </div>
+      )}
       {lowStock.length > 0 && (
         <div className="mb-4 bg-copper-50 border border-copper-100 rounded-xl px-4 py-3 flex items-start gap-3">
           <AlertTriangle size={16} className="text-copper-600 mt-0.5 shrink-0" />

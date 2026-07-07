@@ -15,8 +15,10 @@ import Profile from "./pages/Profile";
 import Categories from "./pages/Categories";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
+import Branches from "./pages/Branches";
+import BranchComparison from "./pages/BranchComparison";
+import MasterCatalogue from "./pages/MasterCatalogue";
 
-// Redirect to the right home page based on role
 function HomeRedirect() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
@@ -24,7 +26,6 @@ function HomeRedirect() {
   return <Dashboard />;
 }
 
-// Only admin & manager can access this route; staff get sent to /pos
 function ManagerRoute({ children }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
@@ -32,7 +33,6 @@ function ManagerRoute({ children }) {
   return children;
 }
 
-// Only admin can access
 function AdminRoute({ children }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
@@ -60,15 +60,19 @@ export default function App() {
             {/* All roles */}
             <Route path="pos" element={<POS />} />
             <Route path="profile" element={<Profile />} />
-            {/* Admin & Manager only */}
+            {/* Manager + Admin */}
             <Route path="inventory" element={<ManagerRoute><Inventory /></ManagerRoute>} />
             <Route path="analytics" element={<ManagerRoute><Analytics /></ManagerRoute>} />
             <Route path="expenses" element={<ManagerRoute><Expenses /></ManagerRoute>} />
             <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
             <Route path="activity" element={<ManagerRoute><ActivityLog /></ManagerRoute>} />
             <Route path="categories" element={<ManagerRoute><Categories /></ManagerRoute>} />
+            <Route path="master-catalogue" element={<ManagerRoute><MasterCatalogue /></ManagerRoute>} />
             {/* Admin only */}
-            <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
+            <Route path="branches" element={<AdminRoute><Branches /></AdminRoute>} />
+            <Route path="branch-comparison" element={<AdminRoute><BranchComparison /></AdminRoute>} />
+            {/* Admin + Manager — managers see only their branch users */}
+            <Route path="users" element={<ManagerRoute><Users /></ManagerRoute>} />
           </Route>
         </Routes>
       </BrowserRouter>

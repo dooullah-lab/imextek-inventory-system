@@ -19,6 +19,12 @@ router.get("/", requireAuth, async (req, res) => {
     const result = await ddbDocClient.send(new ScanCommand({ TableName: TABLES.EXPENSES }));
     let items = result.Items || [];
 
+    if (req.user.role !== "admin") {
+      items = items.filter((e) => e.branchId === req.user.branchId);
+    } else if (req.query.branchId) {
+      items = items.filter((e) => e.branchId === req.query.branchId);
+    }
+
     if (from) items = items.filter((e) => new Date(e.timestamp) >= new Date(from));
     if (to) {
       const toDate = new Date(to);
@@ -55,6 +61,8 @@ router.post("/", requireAuth, async (req, res) => {
       date: date || new Date().toISOString().slice(0, 10),
       notes: notes || "",
       recordedBy: req.user.userId,
+      branchId: req.user.role === "admin" ? (req.body.branchId || null) : req.user.branchId,
+      branchName: req.user.branchName || req.body.branchName || null,
       timestamp: new Date().toISOString(),
     };
 

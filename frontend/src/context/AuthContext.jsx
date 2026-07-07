@@ -12,11 +12,11 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const login = async (email, password) => {
+  const login = async (identifier, password) => {
     setLoading(true);
     setError("");
     try {
-      const res = await api.post("/auth/login", { email, password });
+      const res = await api.post("/auth/login", { identifier, email: identifier, password });
       sessionStorage.setItem("imextek_token", res.data.token);
       sessionStorage.setItem("imextek_user", JSON.stringify(res.data.user));
       setUser(res.data.user);
