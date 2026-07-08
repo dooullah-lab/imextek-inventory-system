@@ -15,9 +15,6 @@ import Profile from "./pages/Profile";
 import Categories from "./pages/Categories";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
-import Branches from "./pages/Branches";
-import BranchComparison from "./pages/BranchComparison";
-import MasterCatalogue from "./pages/MasterCatalogue";
 
 function HomeRedirect() {
   const { user } = useAuth();
@@ -67,12 +64,8 @@ export default function App() {
             <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
             <Route path="activity" element={<ManagerRoute><ActivityLog /></ManagerRoute>} />
             <Route path="categories" element={<ManagerRoute><Categories /></ManagerRoute>} />
-            <Route path="master-catalogue" element={<ManagerRoute><MasterCatalogue /></ManagerRoute>} />
             {/* Admin only */}
-            <Route path="branches" element={<AdminRoute><Branches /></AdminRoute>} />
-            <Route path="branch-comparison" element={<AdminRoute><BranchComparison /></AdminRoute>} />
-            {/* Admin + Manager — managers see only their branch users */}
-            <Route path="users" element={<ManagerRoute><Users /></ManagerRoute>} />
+            <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
           </Route>
         </Routes>
       </BrowserRouter>

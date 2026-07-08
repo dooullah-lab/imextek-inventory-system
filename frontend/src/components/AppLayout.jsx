@@ -5,7 +5,7 @@ import logo from "../assets/logo.png";
 import {
   LayoutDashboard, LayoutGrid, BarChart3, History,
   LogOut, Menu, X, ShieldCheck, Tag, UserCircle,
-  Receipt, ShoppingCart, FileText, GitBranch, BookOpen,
+  Receipt, ShoppingCart, FileText,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -18,14 +18,9 @@ const fullNavItems = [
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/activity", label: "Activity Log", icon: History },
   { to: "/categories", label: "Categories", icon: Tag },
-  { to: "/users", label: "Users & Roles", icon: ShieldCheck },
-  { to: "/master-catalogue", label: "Master Catalogue", icon: BookOpen },
 ];
 
 const adminNavItems = [
-  { to: "/branches", label: "Branches", icon: GitBranch },
-  { to: "/branch-comparison", label: "Branch Comparison", icon: BarChart3 },
-  { to: "/master-catalogue", label: "Master Catalogue", icon: BookOpen },
   { to: "/users", label: "Users & Roles", icon: ShieldCheck },
 ];
 
